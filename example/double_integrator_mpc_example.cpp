@@ -5,25 +5,16 @@
 #include "simple_casadi_mpc.hpp"
 #include "thirdparty/matplotlib-cpp/matplotlibcpp.h"
 
-// x[0] = position
-// x[1] = velocity
-// u[0] = force
-// dx[0]/dt = x[1]
-// dx[1]/dt = u[0]
-class MyProb : public simple_casadi_mpc::Problem
+class DoubleIntegratorProb : public simple_casadi_mpc::Problem
 {
 public:
     using LUbound = Problem::LUbound;
-    MyProb():
-        Problem(2, 1, 20, 0.05) {}
+    DoubleIntegratorProb():
+        Problem(DynamicsType::ContinuesRK4, 2, 1, 20, 0.05) {}
 
-    virtual casadi::MX discretized_dynamics(casadi::MX x, casadi::MX u) override
+    virtual casadi::MX dynamics(casadi::MX x, casadi::MX u) override
     {
-        auto dynamics = [&](casadi::MX x, casadi::MX u) -> casadi::MX
-        {
-            return vertcat(x(1), u);
-        };
-        return simple_casadi_mpc::integrate_dynamics_rk4<casadi::MX>(dt(), x, u, dynamics);
+        return vertcat(x(1), u);
     }
 
     // シミュレーション用
@@ -44,15 +35,6 @@ public:
         return std::vector<LUbound>(horizon(), {lb, ub});
     }
 
-    virtual std::vector<LUbound> x_bounds()
-    {
-        double inf = std::numeric_limits<double>::infinity();
-        Eigen::VectorXd ub = Eigen::VectorXd::Constant(nx(), inf);
-        Eigen::VectorXd lb = -ub;
-
-        return std::vector<LUbound>{horizon(), {lb, ub}};
-    }
-
     virtual casadi::MX stage_cost(casadi::MX x, casadi::MX u) override
     {
         return mtimes(x.T(), x);
@@ -66,8 +48,8 @@ public:
 
 int main() {
     using namespace simple_casadi_mpc;
-    std::cout << "simple mpc example" << std::endl;
-    auto prob = std::make_shared<MyProb>();
+    std::cout << "double integrator mpc example" << std::endl;
+    auto prob = std::make_shared<DoubleIntegratorProb>();
     MPC mpc(prob);
     
     Eigen::VectorXd x = Eigen::VectorXd::Constant(prob->nx(), 1.0);
@@ -90,9 +72,10 @@ int main() {
     // plot
     namespace plt = matplotlibcpp;
     plt::figure();
-    plt::plot(t_log, u_log);
-    plt::plot(t_log, x0_log);
-    plt::plot(t_log, x1_log);
+    plt::named_plot("u", t_log, u_log);
+    plt::named_plot("vel", t_log, x0_log);
+    plt::named_plot("pos", t_log, x1_log);
+    plt::legend();
     plt::show();
 
     return 0;

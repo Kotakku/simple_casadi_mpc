@@ -35,22 +35,50 @@ static T integrate_dynamics_rk4(double dt, T x, T u, std::function<T(T,T)> dynam
 class Problem
 {
 public:
-    Problem() = default;
-    Problem(size_t _nx, size_t _nu, size_t _horizon, double _dt):
-        nx_(_nx), nu_(_nu), horizon_(_horizon), dt_(_dt) {}
+    enum class DynamicsType
+    {
+        ContinuesForwardEuler,
+        ContinuesModifiedEuler,
+        ContinuesRK4,
+        Discretized,
+    };
 
-    // dt_で離散化されたダイナミクス
-    // 微分方程式の場合はintegrate_xxx関数で積分された形にする
-    virtual casadi::MX discretized_dynamics(casadi::MX x, casadi::MX u) = 0;
+    enum class ConstraintType
+    { 
+        Equality,
+        Inequality
+    };
+    Problem() = default;
+    Problem(DynamicsType dyn_type, size_t _nx, size_t _nu, size_t _horizon, double _dt):
+        dyn_type_(dyn_type), nx_(_nx), nu_(_nu), horizon_(_horizon), dt_(_dt) {}
+    
+    // ダイナミクス
+    // 連続系の場合は、xとuを引数にとり、dxを返す、コンストラクタで離散化手法を{ContinuesForwardEuler, ContinuesModifiedEuler, ContinuesRK4}から選択する
+    // 離散系の場合は、xとuを引数にとり、x(k+1)を返す、コンストラクタでDiscretizedと指定する
+    virtual casadi::MX dynamics(casadi::MX x, casadi::MX u) = 0;
 
     // 操作量と状態量の上下限
     using LUbound = std::pair<Eigen::VectorXd, Eigen::VectorXd>;
     // size (nu * horizon) u0 u1 u2 ... uN-1
-    virtual std::vector<LUbound> u_bounds() = 0;
+    virtual std::vector<LUbound> u_bounds()
+    {
+        double inf = std::numeric_limits<double>::infinity();
+        Eigen::VectorXd ub = Eigen::VectorXd::Constant(nu(), inf);
+        Eigen::VectorXd lb = -ub;
+
+        return std::vector<LUbound>{horizon(), {lb, ub}};
+    }
 
     // size (nx * horizon) x1 x2 x3 ... xN
     // x0はsolveで与える状態量
-    virtual std::vector<LUbound> x_bounds() = 0;
+    virtual std::vector<LUbound> x_bounds()
+    {
+        double inf = std::numeric_limits<double>::infinity();
+        Eigen::VectorXd ub = Eigen::VectorXd::Constant(nx(), inf);
+        Eigen::VectorXd lb = -ub;
+
+        return std::vector<LUbound>{horizon(), {lb, ub}};
+    }
 
     // k番目のステージコスト
     virtual casadi::MX stage_cost(casadi::MX x, casadi::MX u)
@@ -64,12 +92,14 @@ public:
         return 0;
     }
 
+    DynamicsType dynamics_type() const { return dyn_type_; }
     size_t nx() const { return nx_; }
     size_t nu() const { return nu_; }
     size_t horizon() const { return horizon_; }
     double dt() const { return dt_; }
 
 private:
+    DynamicsType dyn_type_;
     const size_t nx_;
     const size_t nu_;
     const size_t horizon_;
@@ -89,6 +119,7 @@ public:
             {"ipopt.print_level", 0},
             {"print_time", false},
             {"ipopt.warm_start_init_point", "yes"},
+            {"expand", true}
         };
         return config;
     }
@@ -106,6 +137,7 @@ public:
             {"print_time", false},
             {"qpsol", "qpoases"},
             {"qpsol_options", casadi::Dict{{"enableRegularisation", true}, {"printLevel", "none"}}},
+            {"expand", true}
         };
         return config;
     }
@@ -123,6 +155,7 @@ public:
             {"print_time", false},
             {"qpsol", "hpipm"},
             {"qpsol_options", casadi::Dict{{"hpipm.iter_max", 100}, {"hpipm.warm_start", true}}},
+            {"expand", true}
         };
         return config;
     }
@@ -151,6 +184,32 @@ public:
         std::vector<MX> w, g;
         std::vector<DM> w0;
         MX J = 0;
+        
+        std::function<casadi::MX(casadi::MX, casadi::MX)> dynamics;
+        switch(prob_->dynamics_type())
+        {
+            case Problem::DynamicsType::ContinuesForwardEuler:
+                {
+                    std::function<casadi::MX(casadi::MX, casadi::MX)> con_dyn = std::bind(&Problem::dynamics, prob_, std::placeholders::_1, std::placeholders::_2);
+                    dynamics = std::bind(integrate_dynamics_forward_euler<casadi::MX>, prob_->dt(), std::placeholders::_1, std::placeholders::_2, con_dyn);
+                    break;
+                }
+            case Problem::DynamicsType::ContinuesModifiedEuler:
+                {
+                    std::function<casadi::MX(casadi::MX, casadi::MX)> con_dyn = std::bind(&Problem::dynamics, prob_, std::placeholders::_1, std::placeholders::_2);
+                    dynamics = std::bind(integrate_dynamics_modified_euler<casadi::MX>, prob_->dt(), std::placeholders::_1, std::placeholders::_2, con_dyn);
+                    break;
+                }
+            case Problem::DynamicsType::ContinuesRK4:
+                {
+                    std::function<casadi::MX(casadi::MX, casadi::MX)> con_dyn = std::bind(&Problem::dynamics, prob_, std::placeholders::_1, std::placeholders::_2);
+                    dynamics = std::bind(integrate_dynamics_rk4<casadi::MX>, prob_->dt(), std::placeholders::_1, std::placeholders::_2, con_dyn);
+                    break;
+                }
+            case Problem::DynamicsType::Discretized:
+                dynamics = std::bind(&Problem::dynamics, prob_, std::placeholders::_1, std::placeholders::_2);
+                break;
+        }
 
         auto u_bounds = prob_->u_bounds();
         auto x_bounds = prob_->x_bounds();
@@ -181,7 +240,7 @@ public:
                 lbw_.push_back(u_bounds[i].first[l]);
                 ubw_.push_back(u_bounds[i].second[l]);
             }
-            MX xplus = prob_->discretized_dynamics(Xs[i], Us[i]);
+            MX xplus = dynamics(Xs[i], Us[i]);
             J += prob_->stage_cost(Xs[i], Us[i]);
 
             g.push_back((xplus - Xs[i+1]));
