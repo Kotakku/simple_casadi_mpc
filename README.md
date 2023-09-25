@@ -33,8 +33,17 @@ https://gist.github.com/mayataka/bc08faa63a94d8b48ceba77cc79c7ccc
 
 ![](pic/cartpole_mpc_example.png)
 
+
+https://github.com/Kotakku/simple_casadi_mpc/assets/25411427/d4d3ffab-cfee-47f4-a080-d1ec638afa4c
+
+
 ## inverted_pendulum_mpc_example
 回転軸にモーターがついてるタイプの倒立振子の振り上げ
 トルク制約からアームのように振り上げができないように設定してあるため振り上げに助走が入る
 
 ![](pic/inverted_pendulum_mpc_example.png)
+
+
+https://github.com/Kotakku/simple_casadi_mpc/assets/25411427/8fdee0d8-ef3e-4fd3-b0ae-d3c87431c2a9
+
+
