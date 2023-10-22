@@ -52,3 +52,8 @@ https://github.com/Kotakku/simple_casadi_mpc/assets/25411427/8fdee0d8-ef3e-4fd3-
 その際に円状のオブジェクトの衝突を避けるように制約を追加している
 
 ![](pic/diff_drive_mpc_example.png)
+
+https://github.com/Kotakku/simple_casadi_mpc/assets/25411427/29644ae1-57d9-422b-9fd1-40c99919b0fc
+
+
+
