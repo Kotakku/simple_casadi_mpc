@@ -9,7 +9,6 @@
 class CartpoleProb : public simple_casadi_mpc::Problem
 {
 public:
-    using LUbound = Problem::LUbound;
     CartpoleProb():
         Problem(DynamicsType::ContinuesRK4, 4, 1, 30, 0.05)
     {
@@ -18,6 +17,8 @@ public:
         Q = DM::diag({5, 10.0, 0.01, 0.01});
         R = DM::diag({0.1});
         Qf = DM::diag({10, 10.0, 0.01, 0.01});
+        
+        set_input_bound(Eigen::VectorXd::Constant(1, -15.0), Eigen::VectorXd::Constant(1, 15.0));
     }
 
     virtual casadi::MX dynamics(casadi::MX x, casadi::MX u) override
@@ -58,14 +59,6 @@ public:
         };
 
         return simple_casadi_mpc::integrate_dynamics_rk4<Eigen::VectorXd>(dt, x, u, dynamics);
-    }
-
-    virtual std::vector<LUbound> u_bounds()
-    {
-        Eigen::VectorXd ub = Eigen::VectorXd::Constant(nu(), 15.0);
-        Eigen::VectorXd lb = -ub;
-        
-        return std::vector<LUbound>(horizon(), {lb, ub});
     }
 
     virtual casadi::MX stage_cost(casadi::MX x, casadi::MX u) override
@@ -125,8 +118,9 @@ void animate(const std::vector<double> & x, const std::vector<double> & angle, c
         double range_max = std::max(std::abs(x_max), std::abs(x_min)) + cart_width;
         plt::xlim(-range_max, range_max);
         plt::ylim(-range_max, range_max);
+        plt::save("./movie/sample" + std::to_string(cnt++) + ".png");
         plt::pause(0.01);
-        std::cout << i+1 << "/" << x.size() << std::endl;
+        // std::cout << i+1 << "/" << x.size() << std::endl;
     }
 }
 
@@ -136,9 +130,10 @@ int main() {
     auto prob = std::make_shared<CartpoleProb>();
     MPC mpc(prob);
     
-    // MUMPSじゃなくてHSLのMA57とかを使うと速くなる
+    // MUMPSじゃなくてHSLのMA97とかを使うと速くなる
     // auto ipopt_dict = MPC::default_config();
-    // ipopt_dict["ipopt.linear_solver"] = "ma57";
+    // ipopt_dict["ipopt.linear_solver"] = "ma97";
+    // ipopt_dict["ipopt.max_iter"] = 12; 
     // MPC mpc(prob, "ipopt", ipopt_dict); 
 
     Eigen::VectorXd x = Eigen::VectorXd::Zero(prob->nx());
@@ -156,7 +151,8 @@ int main() {
         auto t_end = std::chrono::system_clock::now();
         x = prob->discretized_dynamics_sim(dt, x, u);
         double solve_time = std::chrono::duration_cast<std::chrono::microseconds>(t_end - t_start).count() * 1e-6;
-        std::cout << "solve time: " << solve_time << std::endl;t_log[i] = i * dt;
+        std::cout << "solve time: " << solve_time << std::endl;
+        t_log[i] = i * dt;
         i_log[i] = i;
         x_log[i] = x[0];
         angle_log[i] = x[1];

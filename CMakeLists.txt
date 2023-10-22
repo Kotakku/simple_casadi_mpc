@@ -47,3 +47,6 @@ target_link_libraries(cartpole_mpc_example PRIVATE casadi Eigen3::Eigen ${PROJEC
 
 add_executable(inverted_pendulum_mpc_example example/inverted_pendulum_mpc_example.cpp)
 target_link_libraries(inverted_pendulum_mpc_example PRIVATE casadi Eigen3::Eigen ${PROJECT_NAME} Python3::Python Python3::NumPy)
+
+add_executable(diff_drive_mpc_example example/diff_drive_mpc_example.cpp)
+target_link_libraries(diff_drive_mpc_example PRIVATE casadi Eigen3::Eigen ${PROJECT_NAME} Python3::Python Python3::NumPy)

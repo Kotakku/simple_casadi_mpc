@@ -9,7 +9,6 @@
 class InvertedPendulumProb : public simple_casadi_mpc::Problem
 {
 public:
-    using LUbound = Problem::LUbound;
     InvertedPendulumProb():
         Problem(DynamicsType::ContinuesRK4, 2, 1, 60, 0.05)
     {
@@ -18,6 +17,8 @@ public:
         Q = DM::diag({5.0, 0.01});
         R = DM::diag({0.01});
         Qf = DM::diag({5.0, 0.1});
+
+        set_input_bound(Eigen::VectorXd::Constant(1, -2.0), Eigen::VectorXd::Constant(1, 2.0));
     }
 
     virtual casadi::MX dynamics(casadi::MX x, casadi::MX u) override
@@ -40,15 +41,6 @@ public:
         };
 
         return simple_casadi_mpc::integrate_dynamics_rk4<Eigen::VectorXd>(dt, x, u, dynamics);
-    }
-
-    virtual std::vector<LUbound> u_bounds()
-    {
-        Eigen::VectorXd ub = Eigen::VectorXd::Constant(nu(), 2.0);
-        // Eigen::VectorXd ub = Eigen::VectorXd::Constant(nu(), 5.0);
-        Eigen::VectorXd lb = -ub;
-        
-        return std::vector<LUbound>(horizon(), {lb, ub});
     }
 
     virtual casadi::MX stage_cost(casadi::MX x, casadi::MX u) override
@@ -101,7 +93,7 @@ void animate(const std::vector<double> & angle, const std::vector<double> & u)
         plt::xlim(-range_max, range_max);
         plt::ylim(-range_max, range_max);
         plt::pause(0.01);
-        std::cout << i+1 << "/" << angle.size() << std::endl;
+        // std::cout << i+1 << "/" << angle.size() << std::endl;
     }
 }
 
@@ -111,7 +103,7 @@ int main() {
     auto prob = std::make_shared<InvertedPendulumProb>();
     MPC mpc(prob); // デフォルトではIPOPTを使う
 
-    // MUMPSじゃなくてHSLのMA57とかを使うと速くなる
+    // MUMPSじゃなくてHSLのMA97とかを使うと速くなる
     // auto ipopt_dict = MPC::default_config();
     // ipopt_dict["ipopt.linear_solver"] = "ma57";
     // MPC mpc(prob, "ipopt", ipopt_dict); 

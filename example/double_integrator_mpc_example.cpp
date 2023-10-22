@@ -8,9 +8,11 @@
 class DoubleIntegratorProb : public simple_casadi_mpc::Problem
 {
 public:
-    using LUbound = Problem::LUbound;
     DoubleIntegratorProb():
-        Problem(DynamicsType::ContinuesRK4, 2, 1, 20, 0.05) {}
+        Problem(DynamicsType::ContinuesRK4, 2, 1, 20, 0.05)
+    {
+        set_input_bound(Eigen::VectorXd::Constant(1, -1.0), Eigen::VectorXd::Constant(1, 1.0));
+    }
 
     virtual casadi::MX dynamics(casadi::MX x, casadi::MX u) override
     {
@@ -25,14 +27,6 @@ public:
             return (Eigen::VectorXd(2) << x(1), u(0)).finished();
         };
         return simple_casadi_mpc::integrate_dynamics_rk4<Eigen::VectorXd>(dt, x, u, dynamics);
-    }
-
-    virtual std::vector<LUbound> u_bounds()
-    {
-        Eigen::VectorXd ub = Eigen::VectorXd::Constant(nu(), 1.0);
-        Eigen::VectorXd lb = -ub;
-        
-        return std::vector<LUbound>(horizon(), {lb, ub});
     }
 
     virtual casadi::MX stage_cost(casadi::MX x, casadi::MX u) override

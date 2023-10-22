@@ -1,6 +1,6 @@
 # simple_casadi_mpc
 
-C++からCasADiを用いて簡単な(ここではボックス制約以外の制約がないことを指す)MPCを解くためのライブラリ
+C++からCasADiを用いてMPCを解くためのライブラリ
 
 # 依存関係
 - CasADi([インストール用スクリプト例](https://github.com/Kotakku/OptimLibSetupHub/blob/master/CasADi/install_casadi.sh))
@@ -47,3 +47,8 @@ https://github.com/Kotakku/simple_casadi_mpc/assets/25411427/d4d3ffab-cfee-47f4-
 https://github.com/Kotakku/simple_casadi_mpc/assets/25411427/8fdee0d8-ef3e-4fd3-b0ae-d3c87431c2a9
 
 
+## diff_drive_mpc_example
+差動二輪で左上から右下まで移動する
+その際に円状のオブジェクトの衝突を避けるように制約を追加している
+
+![](pic/diff_drive_mpc_example.png)

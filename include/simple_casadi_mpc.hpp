@@ -48,9 +48,20 @@ public:
         Equality,
         Inequality
     };
-    Problem() = default;
+
     Problem(DynamicsType dyn_type, size_t _nx, size_t _nu, size_t _horizon, double _dt):
-        dyn_type_(dyn_type), nx_(_nx), nu_(_nu), horizon_(_horizon), dt_(_dt) {}
+        dyn_type_(dyn_type), nx_(_nx), nu_(_nu), horizon_(_horizon), dt_(_dt)
+    {
+        double inf = std::numeric_limits<double>::infinity();
+
+        Eigen::VectorXd uub = Eigen::VectorXd::Constant(nu(), inf);
+        Eigen::VectorXd ulb = -uub;
+        u_bounds_ = std::vector<LUbound>{horizon(), {ulb, uub}};
+
+        Eigen::VectorXd xub = Eigen::VectorXd::Constant(nx(), inf);
+        Eigen::VectorXd xlb = -xub;
+        x_bounds_ = std::vector<LUbound>{horizon(), {xlb, xub}};
+    }
     
     // ダイナミクス
     // 連続系の場合は、xとuを引数にとり、dxを返す、コンストラクタで離散化手法を{ContinuesForwardEuler, ContinuesModifiedEuler, ContinuesRK4}から選択する
@@ -58,26 +69,70 @@ public:
     virtual casadi::MX dynamics(casadi::MX x, casadi::MX u) = 0;
 
     // 操作量と状態量の上下限
-    using LUbound = std::pair<Eigen::VectorXd, Eigen::VectorXd>;
-    // size (nu * horizon) u0 u1 u2 ... uN-1
-    virtual std::vector<LUbound> u_bounds()
+    void set_input_bound(Eigen::VectorXd lb, Eigen::VectorXd ub, int start = -1, int end = -1)
     {
-        double inf = std::numeric_limits<double>::infinity();
-        Eigen::VectorXd ub = Eigen::VectorXd::Constant(nu(), inf);
-        Eigen::VectorXd lb = -ub;
-
-        return std::vector<LUbound>{horizon(), {lb, ub}};
+        std::tie(start, end) = index_range(start, end);
+        for(int i = start; i < end; i++)
+        {
+            u_bounds_[i] = {lb, ub};
+        }
     }
 
-    // size (nx * horizon) x1 x2 x3 ... xN
-    // x0はsolveで与える状態量
-    virtual std::vector<LUbound> x_bounds()
+    void set_input_lower_bound(Eigen::VectorXd lb, int start = -1, int end = -1)
     {
-        double inf = std::numeric_limits<double>::infinity();
-        Eigen::VectorXd ub = Eigen::VectorXd::Constant(nx(), inf);
-        Eigen::VectorXd lb = -ub;
+        std::tie(start, end) = index_range(start, end);
+        for(int i = start; i < end; i++)
+        {
+            u_bounds_[i].first = lb;
+        }
+    }
 
-        return std::vector<LUbound>{horizon(), {lb, ub}};
+    void set_input_upper_bound(Eigen::VectorXd ub, int start = -1, int end = -1)
+    {
+        std::tie(start, end) = index_range(start, end);
+        for(int i = start; i < end; i++)
+        {
+            u_bounds_[i].second = ub;
+        }
+    }
+
+    void set_state_bound(Eigen::VectorXd lb, Eigen::VectorXd ub, int start = -1, int end = -1)
+    {
+        std::tie(start, end) = index_range(start, end);
+        for(int i = start; i < end; i++)
+        {
+            x_bounds_[i] = {lb, ub};
+        }
+    }
+
+    void set_state_lower_bound(Eigen::VectorXd lb, int start = -1, int end = -1)
+    {
+        std::tie(start, end) = index_range(start, end);
+        for(int i = start; i < end; i++)
+        {
+            x_bounds_[i].first = lb;
+        }
+    }
+
+    void set_state_upper_bound(Eigen::VectorXd ub, int start = -1, int end = -1)
+    {
+        std::tie(start, end) = index_range(start, end);
+        for(int i = start; i < end; i++)
+        {
+            x_bounds_[i].second = ub;
+        }
+    }
+
+    void add_constraint(ConstraintType type, std::function<casadi::MX(casadi::MX, casadi::MX)> constrinat)
+    {
+        if(type == ConstraintType::Equality)
+        {
+            equality_constrinats_.push_back(constrinat);
+        }
+        else
+        {
+            inequality_constrinats_.push_back(constrinat);
+        }
     }
 
     // k番目のステージコスト
@@ -99,11 +154,34 @@ public:
     double dt() const { return dt_; }
 
 private:
+    std::pair<int, int> index_range(int start, int end)
+    {
+        if(start == -1 && end == -1)
+        {
+            return {0, horizon_};
+        }
+        if(start != -1 && end == -1)
+        {
+            return {start, start+1};
+        }
+        return {start, end};
+    }
+
     DynamicsType dyn_type_;
     const size_t nx_;
     const size_t nu_;
     const size_t horizon_;
     const double dt_;
+
+    using ConstraintFunc = std::function<casadi::MX(casadi::MX, casadi::MX)>;
+    std::vector<ConstraintFunc> equality_constrinats_;
+    std::vector<ConstraintFunc> inequality_constrinats_;
+
+    using LUbound = std::pair<Eigen::VectorXd, Eigen::VectorXd>;
+    std::vector<LUbound> u_bounds_;
+    std::vector<LUbound> x_bounds_;
+
+    friend class MPC;
 };
 
 class MPC
@@ -211,8 +289,8 @@ public:
                 break;
         }
 
-        auto u_bounds = prob_->u_bounds();
-        auto x_bounds = prob_->x_bounds();
+        auto &u_bounds = prob_->u_bounds_;
+        auto &x_bounds = prob_->x_bounds_;
         for(size_t i = 0; i < N; i++)
         {
             w.push_back(Xs[i]);
@@ -248,6 +326,27 @@ public:
             {
                 lbg_.push_back(0);
                 ubg_.push_back(0);
+            }
+
+            for(auto &con : prob_->equality_constrinats_)
+            {
+                auto con_val = con(Xs[i+1], Us[i]);
+                g.push_back(con_val);
+                for(auto l = 0; l < con_val.size1(); l++)
+                {
+                    lbg_.push_back(0);
+                    ubg_.push_back(0);
+                }
+            }
+            for(auto &con : prob_->inequality_constrinats_)
+            {
+                auto con_val = con(Xs[i+1], Us[i]);
+                g.push_back(con_val);
+                for(auto l = 0; l < con_val.size1(); l++)
+                {
+                    lbg_.push_back(-inf);
+                    ubg_.push_back(0);
+                }
             }
         }
         J += prob_->terminal_cost(Xs[N]);
