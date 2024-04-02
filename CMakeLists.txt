@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 3.10)
 project(simple_casadi_mpc CXX)
 
 set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_FLAGS "-O3 -Wall -Wextra")
 
 set(HEADER_FILES
     ${CMAKE_SOURCE_DIR}/include/simple_casadi_mpc.hpp

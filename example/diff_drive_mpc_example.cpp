@@ -1,19 +1,16 @@
-#include <iostream>
-#include <string>
-#include <casadi/casadi.hpp>
 #include "simple_casadi_mpc.hpp"
 #include "thirdparty/matplotlib-cpp/matplotlibcpp.h"
-
+#include <casadi/casadi.hpp>
 #include <chrono>
+#include <iostream>
+#include <string>
 
-class DiffDriveProb : public simple_casadi_mpc::Problem
-{
+class DiffDriveProb : public simple_casadi_mpc::Problem {
 public:
-    DiffDriveProb():
-        Problem(DynamicsType::ContinuesRK4, 5, 2, 40, 0.1)
-    {
+    DiffDriveProb() : Problem(DynamicsType::ContinuesRK4, 5, 2, 40, 0.1) {
         using namespace casadi;
-        x_ref = {1,-1.0, -M_PI/2, 0, 0};
+        x_ref = parameter("x_ref", 5, 1);
+
         Q = DM::diag({10, 10, 6, 0.5, 0.1});
         R = DM::diag({0.01, 0.01});
         Qf = DM::diag({10, 10, 6, 0.5, 0.1});
@@ -28,13 +25,14 @@ public:
         Eigen::VectorXd x_lb = -x_ub;
         set_state_bound(x_lb, x_ub);
 
-        // 
-        add_constraint(ConstraintType::Inequality, std::bind(&DiffDriveProb::obstacle1, this, std::placeholders::_1, std::placeholders::_2));
-        add_constraint(ConstraintType::Inequality, std::bind(&DiffDriveProb::obstacle2, this, std::placeholders::_1, std::placeholders::_2));
+        //
+        add_constraint(ConstraintType::Inequality,
+                       std::bind(&DiffDriveProb::obstacle1, this, std::placeholders::_1, std::placeholders::_2));
+        add_constraint(ConstraintType::Inequality,
+                       std::bind(&DiffDriveProb::obstacle2, this, std::placeholders::_1, std::placeholders::_2));
     }
 
-    virtual casadi::MX dynamics(casadi::MX x, casadi::MX u) override
-    {
+    virtual casadi::MX dynamics(casadi::MX x, casadi::MX u) override {
         using namespace casadi;
 
         auto lacc = u(0);
@@ -50,29 +48,8 @@ public:
         return vertcat(vx, vy, omega, lacc, racc);
     }
 
-    // シミュレーション用
-    Eigen::VectorXd discretized_dynamics_sim(double dt, Eigen::VectorXd x, Eigen::VectorXd u)
-    {
-        auto dynamics = [&](Eigen::VectorXd x, Eigen::VectorXd u) -> Eigen::VectorXd
-        {
-            auto lacc = u(0);
-            auto racc = u(1);
-            // auto _x = x(0);
-            // auto _y = x(1);
-            auto theta = x(2);
-            auto v = x(3);
-            auto omega = x(4);
-            auto vx = v * cos(theta);
-            auto vy = v * sin(theta);
-
-            return (Eigen::VectorXd(5) << vx, vy, omega, lacc, racc).finished();
-        };
-
-        return simple_casadi_mpc::integrate_dynamics_rk4<Eigen::VectorXd>(dt, x, u, dynamics);
-    }
-
-    casadi::MX obstacle1(casadi::MX x, casadi::MX u)
-    {
+    casadi::MX obstacle1(casadi::MX x, casadi::MX u) {
+        (void)u;
         using namespace casadi;
         casadi::MX xy = x(Slice(0, 2));
         casadi::DM center = casadi::DM::zeros(2);
@@ -80,11 +57,11 @@ public:
         center(1) = 0.5;
         casadi::MX radius = 0.4;
 
-        return -(mtimes((xy-center).T(), (xy-center)) - radius*radius);
+        return -(mtimes((xy - center).T(), (xy - center)) - radius * radius);
     }
 
-    casadi::MX obstacle2(casadi::MX x, casadi::MX u)
-    {
+    casadi::MX obstacle2(casadi::MX x, casadi::MX u) {
+        (void)u;
         using namespace casadi;
         casadi::MX xy = x(Slice(0, 2));
         casadi::DM center = casadi::DM::zeros(2);
@@ -92,11 +69,10 @@ public:
         center(1) = -0.5;
         casadi::MX radius = 0.4;
 
-        return -(mtimes((xy-center).T(), (xy-center)) - radius*radius);
+        return -(mtimes((xy - center).T(), (xy - center)) - radius * radius);
     }
 
-    virtual casadi::MX stage_cost(casadi::MX x, casadi::MX u) override
-    {
+    virtual casadi::MX stage_cost(casadi::MX x, casadi::MX u) override {
         using namespace casadi;
         MX L = 0;
         auto e = x - x_ref;
@@ -105,19 +81,18 @@ public:
         return dt() * L;
     }
 
-    virtual casadi::MX terminal_cost(casadi::MX x)
-    {
+    virtual casadi::MX terminal_cost(casadi::MX x) {
         using namespace casadi;
         auto e = x - x_ref;
         return 0.5 * mtimes(e.T(), mtimes(Qf, e));
     }
 
-    casadi::DM x_ref;
+    casadi::MX x_ref;
     casadi::DM Q, R, Qf;
 };
 
-std::tuple<std::vector<double>, std::vector<double>> get_rectangle_vertices(double x, double y, double theta, double width, double height) 
-{
+std::tuple<std::vector<double>, std::vector<double>> get_rectangle_vertices(double x, double y, double theta,
+                                                                            double width, double height) {
     double x1 = x + cos(theta) * (-width / 2) - sin(theta) * (-height / 2);
     double y1 = y + sin(theta) * (-width / 2) + cos(theta) * (-height / 2);
 
@@ -136,25 +111,20 @@ std::tuple<std::vector<double>, std::vector<double>> get_rectangle_vertices(doub
     return {x_data, y_data};
 }
 
-
-void draw_circle(double x, double y, double radius)
-{
+void draw_circle(double x, double y, double radius) {
     namespace plt = matplotlibcpp;
     std::vector<double> x_data(100), y_data(100);
-    for(size_t i = 0; i < 100; i++)
-    {
-        x_data[i] = radius * cos(2*M_PI/100*i) + x;
-        y_data[i] = radius * sin(2*M_PI/100*i) + y;
+    for (size_t i = 0; i < 100; i++) {
+        x_data[i] = radius * cos(2 * M_PI / 100 * i) + x;
+        y_data[i] = radius * sin(2 * M_PI / 100 * i) + y;
     }
     plt::plot(x_data, y_data, "k-");
 }
 
-void animate(const std::vector<double> & x, const std::vector<double> & y, const std::vector<double> & theta, Eigen::Vector3d start, Eigen::Vector3d goal, size_t skip = 4)
-{
+void animate(const std::vector<double> &x, const std::vector<double> &y, const std::vector<double> &theta,
+             Eigen::Vector3d start, Eigen::Vector3d goal, size_t skip = 4) {
     namespace plt = matplotlibcpp;
-    size_t cnt = 1;
-    for(size_t i = 0; i < x.size(); i += skip)
-    {
+    for (size_t i = 0; i < x.size(); i += skip) {
         plt::clf();
         auto [paint_x_data, paint_y_data] = get_rectangle_vertices(x[i], y[i], theta[i], 0.2, 0.3);
         plt::set_aspect(1.0);
@@ -168,8 +138,8 @@ void animate(const std::vector<double> & x, const std::vector<double> & y, const
         // plt::arrow(start(0), start(1), arrow_length*cos(start(2)), arrow_length*sin(start(2)), "k", "k", 0.1, 0.1);
         // plt::arrow(goal(0), goal(1), arrow_length*cos(goal(2)), arrow_length*sin(goal(2)), "k", "k", 0.1, 0.1);
 
-        draw_circle(0,0.5,0.2);
-        draw_circle(0,-0.5,0.2);
+        draw_circle(0, 0.5, 0.2);
+        draw_circle(0, -0.5, 0.2);
 
         double x_max = *std::max_element(x.begin(), x.end());
         double x_min = *std::min_element(x.begin(), x.end());
@@ -180,7 +150,6 @@ void animate(const std::vector<double> & x, const std::vector<double> & y, const
         double range_max = std::max(range_max_x, range_max_y) + 0.5;
         plt::xlim(-range_max, range_max);
         plt::ylim(-range_max, range_max);
-        plt::save("./movie_dd/sample" + std::to_string(cnt++) + ".png");
         plt::pause(0.01);
         // std::cout << i+1 << "/" << x.size() << std::endl;
     }
@@ -188,46 +157,42 @@ void animate(const std::vector<double> & x, const std::vector<double> & y, const
 
 int main() {
     using namespace simple_casadi_mpc;
-    std::cout << "cartpole mpc example" << std::endl;
+    std::cout << "diff drive mpc example" << std::endl;
     auto prob = std::make_shared<DiffDriveProb>();
     MPC mpc(prob);
-    
-    // auto ipopt_dict = MPC::default_config();
-    // ipopt_dict["ipopt.linear_solver"] = "ma97";
-    // ipopt_dict["ipopt.max_iter"] = 12;
-    // MPC mpc(prob, "ipopt", ipopt_dict); 
+
+    casadi::DMDict param_list;
+    param_list["x_ref"] = {1, -1.0, -M_PI / 2, 0, 0};
 
     Eigen::VectorXd x(5);
     x << -1, 1, 0, 0, 0;
 
-    // std::cout << "simulation" << x << std::endl;
+    std::cout << "simulation" << std::endl;
     const double dt = 0.01;
     const size_t sim_len = 600;
-    std::vector<double> i_log(sim_len), t_log(sim_len), x_log(sim_len), y_log(sim_len), theta_log(sim_len), v_log(sim_len), omega_log(sim_len), dt_log(sim_len);
-    
+    std::vector<double> i_log(sim_len), t_log(sim_len), x_log(sim_len), y_log(sim_len), theta_log(sim_len),
+        v_log(sim_len), omega_log(sim_len), dt_log(sim_len);
+
     auto t_all_start = std::chrono::system_clock::now();
-    for(size_t i = 0; i < sim_len; i++)
-    {
+    for (size_t i = 0; i < sim_len; i++) {
         auto t_start = std::chrono::system_clock::now();
-        Eigen::VectorXd u = mpc.solve(x);
+        Eigen::VectorXd u = mpc.solve(x, param_list);
         auto t_end = std::chrono::system_clock::now();
-        x = prob->discretized_dynamics_sim(dt, x, u);
         double solve_time = std::chrono::duration_cast<std::chrono::microseconds>(t_end - t_start).count() * 1e-6;
         // std::cout << "solve time: " << solve_time << std::endl;
+
+        x = prob->simulate(x, u, dt);
         t_log[i] = i * dt;
         i_log[i] = i;
         x_log[i] = x[0];
         y_log[i] = x[1];
         theta_log[i] = x[2];
-
         v_log[i] = x[3];
         omega_log[i] = x[4];
-        
-        dt_log[i] = solve_time*1e3;
+        dt_log[i] = solve_time * 1e3;
     }
     auto t_all_end = std::chrono::system_clock::now();
     double all_time = std::chrono::duration_cast<std::chrono::microseconds>(t_all_end - t_all_start).count() * 1e-6;
-    std::cout << x.transpose() << std::endl;
     std::cout << "all time: " << all_time << std::endl;
 
     namespace plt = matplotlibcpp;
@@ -254,8 +219,6 @@ int main() {
     Eigen::Vector3d start(-1, 0, 0);
     Eigen::Vector3d goal(1, 0, 0);
     animate(x_log, y_log, theta_log, start, goal);
-
-    // getchar();    
 
     return 0;
 }

@@ -1,17 +1,13 @@
-#include <iostream>
-#include <string>
-#include <casadi/casadi.hpp>
 #include "simple_casadi_mpc.hpp"
 #include "thirdparty/matplotlib-cpp/matplotlibcpp.h"
-
+#include <casadi/casadi.hpp>
 #include <chrono>
+#include <iostream>
+#include <string>
 
-class InvertedPendulumProb : public simple_casadi_mpc::Problem
-{
+class InvertedPendulumProb : public simple_casadi_mpc::Problem {
 public:
-    InvertedPendulumProb():
-        Problem(DynamicsType::ContinuesRK4, 2, 1, 60, 0.05)
-    {
+    InvertedPendulumProb() : Problem(DynamicsType::ContinuesRK4, 2, 1, 60, 0.05) {
         using namespace casadi;
         x_ref = {M_PI, 0};
         Q = DM::diag({5.0, 0.01});
@@ -21,30 +17,15 @@ public:
         set_input_bound(Eigen::VectorXd::Constant(1, -2.0), Eigen::VectorXd::Constant(1, 2.0));
     }
 
-    virtual casadi::MX dynamics(casadi::MX x, casadi::MX u) override
-    {
+    virtual casadi::MX dynamics(casadi::MX x, casadi::MX u) override {
         using namespace casadi;
 
         auto th = x(0);
         auto dth = x(1);
-        return vertcat(dth, (u(0) - m*g*sin(th))/(m*l));
+        return vertcat(dth, (u(0) - m * g * sin(th)) / (m * l));
     }
 
-    // シミュレーション用
-    Eigen::VectorXd discretized_dynamics_sim(double dt, Eigen::VectorXd x, Eigen::VectorXd u)
-    {
-        auto dynamics = [&](Eigen::VectorXd x, Eigen::VectorXd u) -> Eigen::VectorXd
-        {
-            auto th = x(0);
-            auto dth = x(1);
-            return (Eigen::VectorXd(2) << dth, (u(0) - m*g*sin(th))/(m*l)).finished();
-        };
-
-        return simple_casadi_mpc::integrate_dynamics_rk4<Eigen::VectorXd>(dt, x, u, dynamics);
-    }
-
-    virtual casadi::MX stage_cost(casadi::MX x, casadi::MX u) override
-    {
+    virtual casadi::MX stage_cost(casadi::MX x, casadi::MX u) override {
         using namespace casadi;
         MX L = 0;
         auto e = x - x_ref;
@@ -53,8 +34,7 @@ public:
         return dt() * L;
     }
 
-    virtual casadi::MX terminal_cost(casadi::MX x)
-    {
+    virtual casadi::MX terminal_cost(casadi::MX x) {
         using namespace casadi;
         auto e = x - x_ref;
         return 0.5 * mtimes(e.T(), mtimes(Qf, e));
@@ -68,16 +48,13 @@ public:
     casadi::DM Q, R, Qf;
 };
 
-void animate(const std::vector<double> & angle, const std::vector<double> & u)
-{
+void animate(const std::vector<double> &angle, const std::vector<double> &u) {
+    (void)u;
     namespace plt = matplotlibcpp;
-    size_t cnt = 1;
-    for(size_t i = 0; i < angle.size(); i += 3)
-    {
+    for (size_t i = 0; i < angle.size(); i += 3) {
         plt::clf();
 
         double pole_length = 0.5;
-        double pole_width = 0.05;
 
         const double pole_start_x = 0.0;
         const double pole_start_y = 0.0;
@@ -101,12 +78,7 @@ int main() {
     using namespace simple_casadi_mpc;
     std::cout << "inverted pendulum mpc example" << std::endl;
     auto prob = std::make_shared<InvertedPendulumProb>();
-    MPC mpc(prob); // デフォルトではIPOPTを使う
-
-    // MUMPSじゃなくてHSLのMA97とかを使うと速くなる
-    // auto ipopt_dict = MPC::default_config();
-    // ipopt_dict["ipopt.linear_solver"] = "ma57";
-    // MPC mpc(prob, "ipopt", ipopt_dict); 
+    MPC mpc(prob);
 
     Eigen::VectorXd x = Eigen::VectorXd::Zero(prob->nx());
 
@@ -114,27 +86,23 @@ int main() {
     const double dt = 0.01;
     const size_t sim_len = 400;
     std::vector<double> i_log(sim_len), t_log(sim_len), angle_log(sim_len), u_log(sim_len), dt_log(sim_len);
-    
-    auto t_all_start = std::chrono::system_clock::now();
-    for(size_t i = 0; i < sim_len; i++)
-    {
-        auto t_start = std::chrono::system_clock::now();
 
+    auto t_all_start = std::chrono::system_clock::now();
+    for (size_t i = 0; i < sim_len; i++) {
+        auto t_start = std::chrono::system_clock::now();
         // MPCで最適入力を計算
         Eigen::VectorXd u = mpc.solve(x);
-
         auto t_end = std::chrono::system_clock::now();
+        double solve_time = std::chrono::duration_cast<std::chrono::microseconds>(t_end - t_start).count() * 1e-6;
+        // std::cout << "solve time: " << solve_time << std::endl;
 
         // シミュレーション
-        x = prob->discretized_dynamics_sim(dt, x, u);
-
-        double solve_time = std::chrono::duration_cast<std::chrono::microseconds>(t_end - t_start).count() * 1e-6;
-        std::cout << "solve time: " << solve_time << std::endl;
+        x = prob->simulate(x, u, dt);
         i_log[i] = i;
         t_log[i] = i * dt;
         angle_log[i] = x[0];
         u_log[i] = u[0];
-        dt_log[i] = solve_time*1e3;
+        dt_log[i] = solve_time * 1e3;
     }
     auto t_all_end = std::chrono::system_clock::now();
     double all_time = std::chrono::duration_cast<std::chrono::microseconds>(t_all_end - t_all_start).count() * 1e-6;
