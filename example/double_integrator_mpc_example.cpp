@@ -1,4 +1,4 @@
-#include "simple_casadi_mpc.hpp"
+#include "simple_casadi_mpc/simple_casadi_mpc.hpp"
 #include "thirdparty/matplotlib-cpp/matplotlibcpp.h"
 #include <casadi/casadi.hpp>
 #include <iostream>

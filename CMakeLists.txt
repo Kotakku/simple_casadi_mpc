@@ -40,16 +40,15 @@ install(
 find_package(casadi REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(Python3 COMPONENTS Development NumPy)
-find_package(OpenMP)
 
-# add_executable(double_integrator_mpc_example example/double_integrator_mpc_example.cpp)
-# target_link_libraries(double_integrator_mpc_example PRIVATE casadi Eigen3::Eigen ${PROJECT_NAME} Python3::Python Python3::NumPy)
+add_executable(double_integrator_mpc_example example/double_integrator_mpc_example.cpp)
+target_link_libraries(double_integrator_mpc_example PRIVATE casadi Eigen3::Eigen ${PROJECT_NAME} Python3::Python Python3::NumPy)
 
 add_executable(cartpole_mpc_example example/cartpole_mpc_example.cpp)
-target_link_libraries(cartpole_mpc_example PRIVATE casadi Eigen3::Eigen ${PROJECT_NAME} Python3::Python Python3::NumPy OpenMP::OpenMP_CXX)
+target_link_libraries(cartpole_mpc_example PRIVATE casadi Eigen3::Eigen ${PROJECT_NAME} Python3::Python Python3::NumPy)
 
-# add_executable(inverted_pendulum_mpc_example example/inverted_pendulum_mpc_example.cpp)
-# target_link_libraries(inverted_pendulum_mpc_example PRIVATE casadi Eigen3::Eigen ${PROJECT_NAME} Python3::Python Python3::NumPy)
+add_executable(inverted_pendulum_mpc_example example/inverted_pendulum_mpc_example.cpp)
+target_link_libraries(inverted_pendulum_mpc_example PRIVATE casadi Eigen3::Eigen ${PROJECT_NAME} Python3::Python Python3::NumPy)
 
-# add_executable(diff_drive_mpc_example example/diff_drive_mpc_example.cpp)
-# target_link_libraries(diff_drive_mpc_example PRIVATE casadi Eigen3::Eigen ${PROJECT_NAME} Python3::Python Python3::NumPy)
+add_executable(diff_drive_mpc_example example/diff_drive_mpc_example.cpp)
+target_link_libraries(diff_drive_mpc_example PRIVATE casadi Eigen3::Eigen ${PROJECT_NAME} Python3::Python Python3::NumPy)
