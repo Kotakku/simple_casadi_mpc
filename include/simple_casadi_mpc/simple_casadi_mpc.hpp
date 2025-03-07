@@ -215,7 +215,7 @@ private:
 
 class MPC {
 public:
-    static casadi::Dict default_config() {
+    static casadi::Dict default_ipopt_config() {
         casadi::Dict config = {
             {"calc_lam_p", true},
             {"calc_lam_x", true},
@@ -241,22 +241,41 @@ public:
         return config;
     }
 
-    static casadi::Dict default_hpipm_config() {
-        casadi::Dict config = {{"calc_lam_p", true},
-                               {"calc_lam_x", true},
-                               {"max_iter", 100},
-                               // {"print_header", false},
-                               // {"print_iteration", false},
-                               // {"print_status", false},
-                               // {"print_time", false},
-                               {"qpsol", "hpipm"},
-                               {"qpsol_options", casadi::Dict{{"hpipm.iter_max", 100}, {"hpipm.warm_start", true}}},
-                               {"expand", true}};
+    static casadi::Dict default_fatrop_config() {
+        casadi::Dict config = {
+            {"calc_lam_p", true},
+            {"calc_lam_x", true},
+            {"expand", true},
+            {"print_time", false},
+            {"fatrop.print_level", 0},
+            {"fatrop.max_iter", 500},
+            {"fatrop.mu_init", 0.1},
+            {"structure_detection", "auto"},
+            {"fatrop.warm_start_init_point", true},
+            {"fatrop.tol", 1e-6},
+            {"fatrop.acceptable_tol", 5e-3},
+
+            // {"debug", true}, // 問題構造の.mtxファイルへの出力の有無
+        };
         return config;
     }
 
+    // static casadi::Dict default_hpipm_config() {
+    //     casadi::Dict config = {{"calc_lam_p", true},
+    //                            {"calc_lam_x", true},
+    //                            {"max_iter", 100},
+    //                            // {"print_header", false},
+    //                            // {"print_iteration", false},
+    //                            // {"print_status", false},
+    //                            // {"print_time", false},
+    //                            {"qpsol", "hpipm"},
+    //                            {"qpsol_options", casadi::Dict{{"hpipm.iter_max", 100}, {"hpipm.warm_start", true}}},
+    //                            {"expand", true}};
+    //     return config;
+    // }
+
     template <class T>
-    MPC(std::shared_ptr<T> prob, std::string solver_name = "ipopt", casadi::Dict config = default_config())
+    MPC(std::shared_ptr<T> prob, std::string solver_name = "ipopt", casadi::Dict config = default_ipopt_config())
         : prob_(prob), solver_name_(solver_name), config_(config) {
         using namespace casadi;
         static_assert(std::is_base_of_v<Problem, T>, "prob must be based SimpleProb");
@@ -328,26 +347,29 @@ public:
             MX xplus = dynamics(Xs[i], Us[i]);
             J += prob_->stage_cost(Xs[i], Us[i]);
 
-            g.push_back((xplus - Xs[i + 1]));
+            g.push_back((Xs[i + 1] - xplus));
             for (size_t l = 0; l < nx; l++) {
                 lbg_.push_back(0);
                 ubg_.push_back(0);
+                equality_.push_back(true);
             }
 
             for (auto &con : prob_->equality_constrinats_) {
-                auto con_val = con(Xs[i + 1], Us[i]);
+                auto con_val = con(Xs[i], Us[i]);
                 g.push_back(con_val);
                 for (auto l = 0; l < con_val.size1(); l++) {
                     lbg_.push_back(0);
                     ubg_.push_back(0);
+                    equality_.push_back(true);
                 }
             }
             for (auto &con : prob_->inequality_constrinats_) {
-                auto con_val = con(Xs[i + 1], Us[i]);
+                auto con_val = con(Xs[i], Us[i]);
                 g.push_back(con_val);
                 for (auto l = 0; l < con_val.size1(); l++) {
                     lbg_.push_back(-inf);
                     ubg_.push_back(0);
+                    equality_.push_back(false);
                 }
             }
         }
@@ -363,7 +385,10 @@ public:
         for (auto &[param_name, param_pair] : prob_->param_list_)
             params.push_back(param_pair.mx);
         casadi_prob_ = {{"x", vertcat(w)}, {"f", J}, {"g", vertcat(g)}, {"p", vertcat(params)}};
-        // casadi_prob_[param_name] = param_pair.mx;
+        if (solver_name_ == "fatrop" && config_["structure_detection"] == "auto") {
+            config_["equality"] = equality_;
+        }
+
         solver_ = nlpsol("solver", solver_name_, casadi_prob_, config_);
     }
 
@@ -424,6 +449,8 @@ private:
     std::vector<casadi::DM> lbg_;
     std::vector<casadi::DM> ubg_;
     std::vector<casadi::DM> param_vec_;
+
+    std::vector<bool> equality_; // ダイナミクスと追加の制約が等式か不等式か
 
     casadi::DM w0_;
     casadi::DM lam_x0_;
