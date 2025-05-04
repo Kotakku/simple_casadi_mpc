@@ -14,7 +14,7 @@ Eigen::MatrixXd to_eigen(const casadi::DM &dm) {
 }
 
 casadi::DM to_casadi(const Eigen::MatrixXd &mat) {
-    casadi::DM dm(mat.rows(), mat.cols());
+    casadi::DM dm = casadi::DM::zeros(mat.rows(), mat.cols());
     std::memcpy(dm.ptr(), mat.data(), sizeof(double) * mat.rows() * mat.cols());
     return dm;
 }
