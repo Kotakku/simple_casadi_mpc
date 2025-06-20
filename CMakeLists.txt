@@ -19,8 +19,8 @@ target_include_directories(${PROJECT_NAME} INTERFACE
 
 include(GNUInstallDirs)
 install(
-    FILES ${HEADER_FILES}
-    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/simple_casadi_mpc
+    DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/include/
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
 
 install(
