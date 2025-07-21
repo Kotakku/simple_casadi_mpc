@@ -154,9 +154,10 @@ public:
     }
 
     // k番目のステージコスト
-    virtual casadi::MX stage_cost(casadi::MX x, casadi::MX u) {
+    virtual casadi::MX stage_cost(casadi::MX x, casadi::MX u, size_t k) {
         (void)x;
         (void)u;
+        (void)k;
         return 0;
     }
 
@@ -345,7 +346,7 @@ public:
                 ubw_.push_back(u_bounds[i].second[l]);
             }
             MX xplus = dynamics(Xs[i], Us[i]);
-            J += prob_->stage_cost(Xs[i], Us[i]);
+            J += prob_->stage_cost(Xs[i], Us[i], i);
 
             g.push_back((Xs[i + 1] - xplus));
             for (size_t l = 0; l < nx; l++) {

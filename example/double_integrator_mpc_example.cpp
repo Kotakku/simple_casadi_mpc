@@ -15,8 +15,9 @@ public:
         return vertcat(x(1), u);
     }
 
-    virtual casadi::MX stage_cost(casadi::MX x, casadi::MX u) override {
+    virtual casadi::MX stage_cost(casadi::MX x, casadi::MX u, size_t k) override {
         (void)u;
+        (void)k;
         return mtimes(x.T(), x);
     }
 

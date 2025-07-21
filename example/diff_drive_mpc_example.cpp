@@ -72,7 +72,8 @@ public:
         return -(mtimes((xy - center).T(), (xy - center)) - radius * radius);
     }
 
-    virtual casadi::MX stage_cost(casadi::MX x, casadi::MX u) override {
+    virtual casadi::MX stage_cost(casadi::MX x, casadi::MX u, size_t k) override {
+        (void)k;
         using namespace casadi;
         MX L = 0;
         auto e = x - x_ref;
