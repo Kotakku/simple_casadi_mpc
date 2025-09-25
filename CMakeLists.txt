@@ -54,4 +54,7 @@ if(BUILD_EXAMPLES)
 
     add_executable(diff_drive_mpc_example example/diff_drive_mpc_example.cpp)
     target_link_libraries(diff_drive_mpc_example PRIVATE casadi Eigen3::Eigen ${PROJECT_NAME} Python3::Python Python3::NumPy)
+
+    add_executable(cartpole_mpc_codegen_example example/cartpole_mpc_codegen_example.cpp)
+    target_link_libraries(cartpole_mpc_codegen_example PRIVATE casadi Eigen3::Eigen ${PROJECT_NAME} Python3::Python Python3::NumPy)
 endif()

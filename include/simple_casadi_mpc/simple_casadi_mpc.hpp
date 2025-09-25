@@ -212,6 +212,7 @@ private:
     std::map<std::string, MXDMPair> param_list_;
 
     friend class MPC;
+    friend class JITMPC;
 };
 
 class MPC {
@@ -260,20 +261,6 @@ public:
         };
         return config;
     }
-
-    // static casadi::Dict default_hpipm_config() {
-    //     casadi::Dict config = {{"calc_lam_p", true},
-    //                            {"calc_lam_x", true},
-    //                            {"max_iter", 100},
-    //                            // {"print_header", false},
-    //                            // {"print_iteration", false},
-    //                            // {"print_status", false},
-    //                            // {"print_time", false},
-    //                            {"qpsol", "hpipm"},
-    //                            {"qpsol_options", casadi::Dict{{"hpipm.iter_max", 100}, {"hpipm.warm_start", true}}},
-    //                            {"expand", true}};
-    //     return config;
-    // }
 
     template <class T>
     MPC(std::shared_ptr<T> prob, std::string solver_name = "ipopt", casadi::Dict config = default_ipopt_config())
@@ -393,7 +380,7 @@ public:
         solver_ = nlpsol("solver", solver_name_, casadi_prob_, config_);
     }
 
-    Eigen::VectorXd solve(Eigen::VectorXd x0, casadi::DMDict new_param_list = casadi::DMDict()) {
+    virtual Eigen::VectorXd solve(Eigen::VectorXd x0, casadi::DMDict new_param_list = casadi::DMDict()) {
         using namespace casadi;
 
         // Set new parameter
@@ -436,7 +423,7 @@ public:
 
     casadi::MXDict casadi_prob() const { return casadi_prob_; }
 
-private:
+protected:
     std::shared_ptr<Problem> prob_;
     std::string solver_name_;
     casadi::Dict config_;
@@ -456,6 +443,107 @@ private:
     casadi::DM w0_;
     casadi::DM lam_x0_;
     casadi::DM lam_g0_;
+
+private:
+};
+
+class JITMPC : public MPC {
+public:
+    template <class T>
+    JITMPC(const std::string &prob_name, std::shared_ptr<T> prob, std::string solver_name = "ipopt", casadi::Dict config = MPC::default_ipopt_config(), const bool verbose = false)
+        : MPC(prob, solver_name, config), prob_(prob) {
+        static_assert(std::is_base_of_v<Problem, T>, "prob must be based SimpleProb");
+
+        if (verbose)
+            std::cout << "Generating and compiling optimized code..." << std::endl;
+        generate_and_compile_code(prob_name);
+        if (verbose)
+            std::cout << "Code generation completed." << std::endl;
+    }
+
+    Eigen::VectorXd solve(Eigen::VectorXd x0, casadi::DMDict new_param_list = casadi::DMDict()) override {
+        using namespace casadi;
+
+        for (auto &[param_name, param] : new_param_list) {
+            prob_->param_list_[param_name].dm = param;
+        }
+
+        const size_t nx = prob_->nx();
+        const size_t nu = prob_->nu();
+        for (size_t l = 0; l < nx; l++) {
+            lbw_[l] = x0[l];
+            ubw_[l] = x0[l];
+        }
+
+        DMDict arg;
+        arg["x0"] = w0_;
+        arg["lbx"] = vertcat(lbw_);
+        arg["ubx"] = vertcat(ubw_);
+        arg["lbg"] = vertcat(lbg_);
+        arg["ubg"] = vertcat(ubg_);
+        arg["lam_x0"] = lam_x0_;
+        arg["lam_g0"] = lam_g0_;
+        param_vec_.clear();
+        param_vec_.reserve(prob_->param_list_.size());
+        for (auto &[param_name, param_pair] : prob_->param_list_) {
+            param_vec_.push_back(param_pair.dm);
+        }
+        arg["p"] = vertcat(param_vec_);
+        DMDict sol = compiled_solver_(arg);
+
+        w0_ = sol["x"];
+        lam_x0_ = sol["lam_x"];
+        lam_g0_ = sol["lam_g"];
+
+        Eigen::VectorXd opt_u(nu);
+        std::copy(w0_.ptr() + nx, w0_.ptr() + nx + nu, opt_u.data());
+
+        return opt_u;
+    }
+
+private:
+    void generate_and_compile_code(const std::string &prob_name) {
+        using namespace casadi;
+
+        // convert MX to SX
+        MX mx_x = casadi_prob_["x"];
+        MX mx_p = casadi_prob_["p"];
+        MX mx_f = casadi_prob_["f"];
+        MX mx_g = casadi_prob_["g"];
+
+        Function mx_func = Function("mx_func", {mx_x, mx_p}, {mx_f, mx_g});
+        Function sx_func = mx_func.expand();
+        SX sx_x = SX::sym("x", mx_x.size());
+        SX sx_p = SX::sym("p", mx_p.size());
+
+        std::vector<SX> sx_inputs = {sx_x, sx_p};
+        std::vector<SX> sx_out = sx_func(sx_inputs);
+        SX sx_f = sx_out[0];
+        SX sx_g = sx_out[1];
+
+        SXDict nlp_sx = {
+            {"x", sx_x},
+            {"f", sx_f},
+            {"g", sx_g},
+            {"p", sx_p}};
+
+        // JIT compile
+        Dict jit_options = config_;
+        jit_options["jit"] = true;
+        jit_options["jit_options"] = Dict{
+            {"compiler", "ccache gcc"}, // enable caching
+            {"flags", "-O3 -march=native"},
+            {"verbose", false},
+        };
+        jit_options["jit_serialize"] = "embed";
+        jit_options["jit_name"] = "jit_" + prob_name;
+        jit_options["jit_temp_suffix"] = false;
+
+        compiled_solver_ = nlpsol("compiled_solver", solver_name_, nlp_sx, jit_options);
+    }
+
+    casadi::Function compiled_solver_;
+    std::shared_ptr<Problem> prob_;
 };
 
 } // namespace simple_casadi_mpc
