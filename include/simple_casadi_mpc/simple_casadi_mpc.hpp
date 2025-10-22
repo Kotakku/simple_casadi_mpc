@@ -180,6 +180,12 @@ public:
         return param;
     }
 
+    // Helper function to define a reference trajectory parameter
+    // The trajectory should have shape (nx, horizon) where each column is the reference state at that horizon step
+    casadi::MX reference_trajectory(std::string name = "x_ref") {
+        return parameter(name, nx_, horizon_);
+    }
+
 private:
     std::pair<int, int> index_range(int start, int end) {
         if (start == -1 && end == -1) {
@@ -256,10 +262,19 @@ public:
             {"fatrop.warm_start_init_point", true},
             {"fatrop.tol", 1e-6},
             {"fatrop.acceptable_tol", 5e-3},
-
-            // {"debug", true}, // 問題構造の.mtxファイルへの出力の有無
+            // {"debug", true},
         };
         return config;
+    }
+
+    static bool equality_required(const std::string &solver_name, const casadi::Dict &config) {
+        if (solver_name == "fatrop") {
+            auto it = config.find("structure_detection");
+            if (it != config.end() && it->second == "auto") {
+                return true;
+            }
+        }
+        return false;
     }
 
     template <class T>
@@ -272,112 +287,15 @@ public:
         const size_t nu = prob_->nu();
         const size_t N = prob_->horizon();
 
-        Xs.reserve(N + 1);
-        Us.reserve(N);
+        build_with_map(nx, nu, N);
 
-        for (size_t i = 0; i < N; i++) {
-            Xs.push_back(MX::sym("X_" + std::to_string(i), nx, 1));
-            Us.push_back(MX::sym("U_" + std::to_string(i), nu, 1));
-        }
-        Xs.push_back(MX::sym("X_" + std::to_string(N), nx, 1));
-
-        std::vector<MX> w, g;
-        std::vector<DM> w0;
-        MX J = 0;
-
-        std::function<casadi::MX(casadi::MX, casadi::MX)> dynamics;
-        switch (prob_->dynamics_type()) {
-        case Problem::DynamicsType::ContinuesForwardEuler: {
-            std::function<casadi::MX(casadi::MX, casadi::MX)> con_dyn =
-                std::bind(&Problem::dynamics, prob_, std::placeholders::_1, std::placeholders::_2);
-            dynamics = std::bind(integrate_dynamics_forward_euler<casadi::MX>, prob_->dt(), std::placeholders::_1, std::placeholders::_2, con_dyn);
-            break;
-        }
-        case Problem::DynamicsType::ContinuesModifiedEuler: {
-            std::function<casadi::MX(casadi::MX, casadi::MX)> con_dyn =
-                std::bind(&Problem::dynamics, prob_, std::placeholders::_1, std::placeholders::_2);
-            dynamics = std::bind(integrate_dynamics_modified_euler<casadi::MX>, prob_->dt(), std::placeholders::_1, std::placeholders::_2, con_dyn);
-            break;
-        }
-        case Problem::DynamicsType::ContinuesRK4: {
-            std::function<casadi::MX(casadi::MX, casadi::MX)> con_dyn =
-                std::bind(&Problem::dynamics, prob_, std::placeholders::_1, std::placeholders::_2);
-            dynamics = std::bind(integrate_dynamics_rk4<casadi::MX>, prob_->dt(), std::placeholders::_1, std::placeholders::_2, con_dyn);
-            break;
-        }
-        case Problem::DynamicsType::Discretized:
-            dynamics = std::bind(&Problem::dynamics, prob_, std::placeholders::_1, std::placeholders::_2);
-            break;
+        if (equality_required(solver_name_, config_)) {
+            // Convert std::vector<bool> to std::vector<casadi_int> for CasADi
+            std::vector<casadi_int> equality_int(equality_.begin(), equality_.end());
+            config_["equality"] = equality_int;
         }
 
-        auto &u_bounds = prob_->u_bounds_;
-        auto &x_bounds = prob_->x_bounds_;
-        for (size_t i = 0; i < N; i++) {
-            w.push_back(Xs[i]);
-
-            if (i != 0) {
-                for (size_t l = 0; l < nx; l++) {
-                    lbw_.push_back(x_bounds[i - 1].first[l]);
-                    ubw_.push_back(x_bounds[i - 1].second[l]);
-                }
-            } else {
-                for (size_t l = 0; l < nx; l++) {
-                    lbw_.push_back(0); // dummy
-                    ubw_.push_back(0); // dummy
-                }
-            }
-
-            w.push_back(Us[i]);
-            for (size_t l = 0; l < nu; l++) {
-                lbw_.push_back(u_bounds[i].first[l]);
-                ubw_.push_back(u_bounds[i].second[l]);
-            }
-            MX xplus = dynamics(Xs[i], Us[i]);
-            J += prob_->stage_cost(Xs[i], Us[i], i);
-
-            g.push_back((Xs[i + 1] - xplus));
-            for (size_t l = 0; l < nx; l++) {
-                lbg_.push_back(0);
-                ubg_.push_back(0);
-                equality_.push_back(true);
-            }
-
-            for (auto &con : prob_->equality_constrinats_) {
-                auto con_val = con(Xs[i], Us[i]);
-                g.push_back(con_val);
-                for (auto l = 0; l < con_val.size1(); l++) {
-                    lbg_.push_back(0);
-                    ubg_.push_back(0);
-                    equality_.push_back(true);
-                }
-            }
-            for (auto &con : prob_->inequality_constrinats_) {
-                auto con_val = con(Xs[i], Us[i]);
-                g.push_back(con_val);
-                for (auto l = 0; l < con_val.size1(); l++) {
-                    lbg_.push_back(-inf);
-                    ubg_.push_back(0);
-                    equality_.push_back(false);
-                }
-            }
-        }
-        J += prob_->terminal_cost(Xs[N]);
-
-        w.push_back(Xs[N]);
-        for (size_t l = 0; l < nx; l++) {
-            lbw_.push_back(x_bounds[N - 1].first[l]);
-            ubw_.push_back(x_bounds[N - 1].second[l]);
-        }
-
-        std::vector<MX> params;
-        for (auto &[param_name, param_pair] : prob_->param_list_)
-            params.push_back(param_pair.mx);
-        casadi_prob_ = {{"x", vertcat(w)}, {"f", J}, {"g", vertcat(g)}, {"p", vertcat(params)}};
-        if (solver_name_ == "fatrop" && config_["structure_detection"] == "auto") {
-            config_["equality"] = equality_;
-        }
-
-        solver_ = nlpsol("solver", solver_name_, casadi_prob_, config_);
+        build_solver();
     }
 
     virtual Eigen::VectorXd solve(Eigen::VectorXd x0, casadi::DMDict new_param_list = casadi::DMDict()) {
@@ -390,17 +308,18 @@ public:
 
         const size_t nx = prob_->nx();
         const size_t nu = prob_->nu();
+
         for (size_t l = 0; l < nx; l++) {
-            lbw_[l] = x0[l];
-            ubw_[l] = x0[l];
+            lbw_(l) = x0[l];
+            ubw_(l) = x0[l];
         }
 
         DMDict arg;
         arg["x0"] = w0_;
-        arg["lbx"] = vertcat(lbw_);
-        arg["ubx"] = vertcat(ubw_);
-        arg["lbg"] = vertcat(lbg_);
-        arg["ubg"] = vertcat(ubg_);
+        arg["lbx"] = lbw_;
+        arg["ubx"] = ubw_;
+        arg["lbg"] = lbg_;
+        arg["ubg"] = ubg_;
         arg["lam_x0"] = lam_x0_;
         arg["lam_g0"] = lam_g0_;
         param_vec_.clear();
@@ -429,20 +348,212 @@ protected:
     casadi::Dict config_;
     casadi::MXDict casadi_prob_;
     casadi::Function solver_;
-    std::vector<casadi::MX> Xs;
-    std::vector<casadi::MX> Us;
+    std::vector<casadi::MX> Xs = {};
+    std::vector<casadi::MX> Us = {};
 
-    std::vector<casadi::DM> lbw_;
-    std::vector<casadi::DM> ubw_;
-    std::vector<casadi::DM> lbg_;
-    std::vector<casadi::DM> ubg_;
-    std::vector<casadi::DM> param_vec_;
+    casadi::DM lbw_;
+    casadi::DM ubw_;
+    casadi::DM lbg_;
+    casadi::DM ubg_;
+    std::vector<casadi::DM> param_vec_ = {};
 
-    std::vector<bool> equality_; // ダイナミクスと追加の制約が等式か不等式か
+    std::vector<bool> equality_ = {}; // ダイナミクスと追加の制約が等式か不等式か
 
     casadi::DM w0_;
     casadi::DM lam_x0_;
     casadi::DM lam_g0_;
+
+    // Build NLP with map (for expand=false, faster JIT compilation)
+    void build_with_map(size_t nx, size_t nu, casadi_int N) {
+        using namespace casadi;
+        double inf = std::numeric_limits<double>::infinity(); // Make sure inf is defined
+
+        // 1. Symbolic variables - create individual variables for each stage
+        Xs.reserve(N + 1);
+        Us.reserve(N);
+        for (casadi_int i = 0; i < N; i++) {
+            Xs.push_back(MX::sym("X_" + std::to_string(i), nx, 1));
+            Us.push_back(MX::sym("U_" + std::to_string(i), nu, 1));
+        }
+        Xs.push_back(MX::sym("X_" + std::to_string(N), nx, 1));
+
+        // Create matrices for map operations
+        MX X = horzcat(Xs);
+        MX U = horzcat(Us);
+
+        MX x_k = MX::sym("x_k", nx);
+        MX u_k = MX::sym("u_k", nu);
+
+        // Collect all parameters
+        std::vector<MX> params_mx;
+        for (auto &[param_name, param_pair] : prob_->param_list_)
+            params_mx.push_back(param_pair.mx);
+
+        // 2. CasADi Functions for one step (unchanged)
+        // std::function<MX(MX, MX)> dynamics_func;
+        // ... same as your code ...
+        MX x_next;
+        switch (prob_->dynamics_type()) {
+        case Problem::DynamicsType::ContinuesForwardEuler: {
+            std::function<casadi::MX(casadi::MX, casadi::MX)> con_dyn =
+                std::bind(&Problem::dynamics, prob_.get(), std::placeholders::_1, std::placeholders::_2);
+            x_next = integrate_dynamics_forward_euler<casadi::MX>(prob_->dt(), x_k, u_k, con_dyn);
+            break;
+        }
+        case Problem::DynamicsType::ContinuesModifiedEuler: {
+            std::function<casadi::MX(casadi::MX, casadi::MX)> con_dyn =
+                std::bind(&Problem::dynamics, prob_.get(), std::placeholders::_1, std::placeholders::_2);
+            x_next = integrate_dynamics_modified_euler<casadi::MX>(prob_->dt(), x_k, u_k, con_dyn);
+            break;
+        }
+        case Problem::DynamicsType::ContinuesRK4: {
+            std::function<casadi::MX(casadi::MX, casadi::MX)> con_dyn =
+                std::bind(&Problem::dynamics, prob_.get(), std::placeholders::_1, std::placeholders::_2);
+            x_next = integrate_dynamics_rk4<casadi::MX>(prob_->dt(), x_k, u_k, con_dyn);
+            break;
+        }
+        case Problem::DynamicsType::Discretized:
+            x_next = prob_->dynamics(x_k, u_k);
+            break;
+        }
+        Function F("F_dynamics", {x_k, u_k}, {x_next});
+
+        // Stage cost function (will be called individually for each horizon step with correct k index)
+        std::vector<MX> L_inputs = {x_k, u_k};
+        L_inputs.insert(L_inputs.end(), params_mx.begin(), params_mx.end());
+        MX stage_cost = prob_->stage_cost(x_k, u_k, 0);
+        Function L("L_stage_cost", L_inputs, {stage_cost});
+
+        // 制約一覧
+        std::vector<MX> g_k_vec;
+        for (auto &con : prob_->equality_constrinats_) {
+            g_k_vec.push_back(con(x_k, u_k));
+        }
+        for (auto &con : prob_->inequality_constrinats_) {
+            g_k_vec.push_back(con(x_k, u_k));
+        }
+        MX g_k = vertcat(g_k_vec);
+
+        std::vector<MX> G_inputs = {x_k, u_k};
+        G_inputs.insert(G_inputs.end(), params_mx.begin(), params_mx.end());
+        Function G_constraints("G_constraints", G_inputs, {g_k});
+
+        // 3. Map application
+        MX X_next_cal = F.map(N)(std::vector<MX>{X(Slice(), Slice(0, N)), U})[0];
+
+        // Calculate stage costs individually for each horizon step to support trajectory-based references
+        // This allows each step to use the correct index k in stage_cost()
+        std::vector<MX> stage_costs;
+        stage_costs.reserve(N);
+        for (casadi_int i = 0; i < N; ++i) {
+            std::vector<MX> stage_cost_inputs = {Xs[i], Us[i]};
+            stage_cost_inputs.insert(stage_cost_inputs.end(), params_mx.begin(), params_mx.end());
+
+            // Call stage_cost with the correct horizon index k=i
+            MX cost_i = prob_->stage_cost(Xs[i], Us[i], i);
+
+            // Create function to maintain parameter dependencies
+            Function L_i("L_stage_cost_" + std::to_string(i), stage_cost_inputs, {cost_i});
+            stage_costs.push_back(L_i(stage_cost_inputs)[0]);
+        }
+        MX J_stage = sum(vertcat(stage_costs));
+
+        // Terminal cost
+        MX terminal_val = prob_->terminal_cost(Xs[N]);
+        MX J = J_stage + terminal_val;
+
+        // Path constraints
+        MX G_path;
+        if (!g_k.is_empty()) {
+            std::vector<MX> G_map_inputs = {X(Slice(), Slice(0, N)), U};
+            for (auto &param : params_mx) {
+                G_map_inputs.push_back(repmat(param, 1, N));
+            }
+            G_path = G_constraints.map(N)(G_map_inputs)[0];
+        }
+
+        // 4. NLP construction
+        std::vector<MX> w_vec;
+        w_vec.reserve(2 * N + 1);
+        for (casadi_int i = 0; i < N; ++i) {
+            w_vec.push_back(Xs[i]);
+            w_vec.push_back(Us[i]);
+        }
+        w_vec.push_back(Xs[N]);
+        MX w = vertcat(w_vec);
+
+        std::vector<MX> g_vec;
+        g_vec.push_back(reshape(X(Slice(), Slice(1, N + 1)) - X_next_cal, nx * N, 1));
+        if (!g_k.is_empty()) {
+            g_vec.push_back(reshape(G_path, G_path.size1() * G_path.size2(), 1));
+        }
+
+        // --- [FIX] Build bounds in temporary double vectors first ---
+        std::vector<double> lbw_numeric, ubw_numeric, lbg_numeric, ubg_numeric;
+
+        auto &u_bounds = prob_->u_bounds_;
+        auto &x_bounds = prob_->x_bounds_;
+
+        // Bounds for w
+        for (casadi_int i = 0; i < N; ++i) {
+            if (i == 0) { // Dummy bounds for x_0 (will be overwritten by x0)
+                lbw_numeric.insert(lbw_numeric.end(), nx, 0.0);
+                ubw_numeric.insert(ubw_numeric.end(), nx, 0.0);
+            } else {
+                lbw_numeric.insert(lbw_numeric.end(), x_bounds[i - 1].first.data(), x_bounds[i - 1].first.data() + nx);
+                ubw_numeric.insert(ubw_numeric.end(), x_bounds[i - 1].second.data(), x_bounds[i - 1].second.data() + nx);
+            }
+            lbw_numeric.insert(lbw_numeric.end(), u_bounds[i].first.data(), u_bounds[i].first.data() + nu);
+            ubw_numeric.insert(ubw_numeric.end(), u_bounds[i].second.data(), u_bounds[i].second.data() + nu);
+        }
+        // Bounds for x_N
+        lbw_numeric.insert(lbw_numeric.end(), x_bounds[N - 1].first.data(), x_bounds[N - 1].first.data() + nx);
+        ubw_numeric.insert(ubw_numeric.end(), x_bounds[N - 1].second.data(), x_bounds[N - 1].second.data() + nx);
+
+        // Bounds for g
+        // Continuity constraints are all zero
+        lbg_numeric.insert(lbg_numeric.end(), nx * N, 0.0);
+        ubg_numeric.insert(ubg_numeric.end(), nx * N, 0.0);
+        equality_.insert(equality_.end(), nx * N, true);
+
+        // Path constraints bounds
+        for (casadi_int i = 0; i < N; ++i) {
+            for (auto &con : prob_->equality_constrinats_) {
+                auto con_val = con(x_k, u_k); // For getting size
+                lbg_numeric.insert(lbg_numeric.end(), con_val.size1(), 0.0);
+                ubg_numeric.insert(ubg_numeric.end(), con_val.size1(), 0.0);
+
+                equality_.insert(equality_.end(), con_val.size1(), true);
+            }
+            for (auto &con : prob_->inequality_constrinats_) {
+                auto con_val = con(x_k, u_k); // For getting size
+                lbg_numeric.insert(lbg_numeric.end(), con_val.size1(), -inf);
+                ubg_numeric.insert(ubg_numeric.end(), con_val.size1(), 0.0);
+
+                equality_.insert(equality_.end(), con_val.size1(), false);
+            }
+        }
+
+        // Assign from the temporary numeric vectors
+        lbw_ = casadi::DM(lbw_numeric);
+        ubw_ = casadi::DM(ubw_numeric);
+        lbg_ = casadi::DM(lbg_numeric);
+        ubg_ = casadi::DM(ubg_numeric);
+
+        MX g_all = vertcat(g_vec);
+        MX p_all = vertcat(params_mx);
+
+        casadi_prob_ = {{"x", w}, {"f", J}, {"g", g_all}, {"p", p_all}};
+
+        // Initialize w0_, lam_x0_, lam_g0_ for warm start
+        w0_ = DM::zeros(w.size1(), 1);
+        lam_x0_ = DM::zeros(w.size1(), 1);
+        lam_g0_ = DM::zeros(vertcat(g_vec).size1(), 1);
+    }
+
+    virtual void build_solver() {
+        solver_ = nlpsol("solver", solver_name_, casadi_prob_, config_);
+    }
 
 private:
 };
@@ -451,7 +562,7 @@ class JITMPC : public MPC {
 public:
     template <class T>
     JITMPC(const std::string &prob_name, std::shared_ptr<T> prob, std::string solver_name = "ipopt", casadi::Dict config = MPC::default_ipopt_config(), const bool verbose = false)
-        : MPC(prob, solver_name, config), prob_(prob) {
+        : MPC(prob, solver_name, config), prob_(prob), prob_name_(prob_name) {
         static_assert(std::is_base_of_v<Problem, T>, "prob must be based SimpleProb");
 
         if (verbose)
@@ -470,17 +581,18 @@ public:
 
         const size_t nx = prob_->nx();
         const size_t nu = prob_->nu();
+
         for (size_t l = 0; l < nx; l++) {
-            lbw_[l] = x0[l];
-            ubw_[l] = x0[l];
+            lbw_(l) = x0[l];
+            ubw_(l) = x0[l];
         }
 
         DMDict arg;
         arg["x0"] = w0_;
-        arg["lbx"] = vertcat(lbw_);
-        arg["ubx"] = vertcat(ubw_);
-        arg["lbg"] = vertcat(lbg_);
-        arg["ubg"] = vertcat(ubg_);
+        arg["lbx"] = lbw_;
+        arg["ubx"] = ubw_;
+        arg["lbg"] = lbg_;
+        arg["ubg"] = ubg_;
         arg["lam_x0"] = lam_x0_;
         arg["lam_g0"] = lam_g0_;
         param_vec_.clear();
@@ -505,45 +617,27 @@ private:
     void generate_and_compile_code(const std::string &prob_name) {
         using namespace casadi;
 
-        // convert MX to SX
-        MX mx_x = casadi_prob_["x"];
-        MX mx_p = casadi_prob_["p"];
-        MX mx_f = casadi_prob_["f"];
-        MX mx_g = casadi_prob_["g"];
-
-        Function mx_func = Function("mx_func", {mx_x, mx_p}, {mx_f, mx_g});
-        Function sx_func = mx_func.expand();
-        SX sx_x = SX::sym("x", mx_x.size());
-        SX sx_p = SX::sym("p", mx_p.size());
-
-        std::vector<SX> sx_inputs = {sx_x, sx_p};
-        std::vector<SX> sx_out = sx_func(sx_inputs);
-        SX sx_f = sx_out[0];
-        SX sx_g = sx_out[1];
-
-        SXDict nlp_sx = {
-            {"x", sx_x},
-            {"f", sx_f},
-            {"g", sx_g},
-            {"p", sx_p}};
-
-        // JIT compile
+        // JIT compile the solver for better performance
         Dict jit_options = config_;
         jit_options["jit"] = true;
         jit_options["jit_options"] = Dict{
-            {"compiler", "ccache gcc"}, // enable caching
+            {"compiler", "ccache gcc"},
             {"flags", "-O3 -march=native"},
             {"verbose", false},
         };
-        jit_options["jit_serialize"] = "embed";
         jit_options["jit_name"] = "jit_" + prob_name;
         jit_options["jit_temp_suffix"] = false;
 
-        compiled_solver_ = nlpsol("compiled_solver", solver_name_, nlp_sx, jit_options);
+        compiled_solver_ = nlpsol("compiled_solver", solver_name_, casadi_prob_, jit_options);
+    }
+
+    virtual void build_solver() override {
+        // Do nothing, as solver will be built via JIT compilation
     }
 
     casadi::Function compiled_solver_;
     std::shared_ptr<Problem> prob_;
+    std::string prob_name_;
 };
 
 } // namespace simple_casadi_mpc
