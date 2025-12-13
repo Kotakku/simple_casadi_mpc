@@ -1,5 +1,8 @@
 cmake_minimum_required(VERSION 3.14)
 
+option(BUILD_EXAMPLES "Build example executables" OFF)
+option(BUILD_BENCHMARKS "Build benchmark executables" OFF)
+
 project(simple_casadi_mpc CXX)
 
 set(CMAKE_CXX_STANDARD 17)
@@ -37,7 +40,7 @@ install(
 )
 
 # build examples
-option(BUILD_EXAMPLES "Build example executables" ON)
+
 if(BUILD_EXAMPLES)
     find_package(PkgConfig REQUIRED)
     find_package(casadi REQUIRED)
@@ -89,5 +92,32 @@ if(BUILD_EXAMPLES)
     add_dependencies(cartpole_mpc_codegen_example cartpole_problem_compiled_solver)
     target_include_directories(cartpole_mpc_codegen_example PRIVATE ${CMAKE_SOURCE_DIR}/example ${cartpole_problem_CODEGEN_DIR})
     target_link_libraries(cartpole_mpc_codegen_example PRIVATE casadi Eigen3::Eigen ${PROJECT_NAME} cartpole_problem_compiled_solver pybind11::embed matplotlibcpp17::matplotlibcpp17)
+
+endif()
+
+# build benchmarks
+if(BUILD_BENCHMARKS)
+    find_package(PkgConfig REQUIRED)
+    find_package(casadi REQUIRED)
+    find_package(Eigen3 REQUIRED)
+    find_package(Python3 COMPONENTS Interpreter Development NumPy REQUIRED)
+    find_package(pybind11 REQUIRED)
+    find_package(matplotlibcpp17 REQUIRED)
+
+    pkg_check_modules(IPOPT REQUIRED ipopt)
+    list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+    include(simple_casadi_mpc_codegen)
+
+    add_simple_casadi_mpc_codegen(cartpole_solver_bench benchmark/cartpole_mpc_codegen.cpp
+        EXPORT_SOLVER_NAME cartpole_solver_bench
+        INCLUDE_DIRS ${CMAKE_SOURCE_DIR}/benchmark
+        LINK_LIBS fatrop blasfeo
+    )
+
+    add_executable(cartpole_mpc_solver_bench benchmark/cartpole_mpc_solver_bench.cpp)
+    target_sources(cartpole_mpc_solver_bench PRIVATE ${cartpole_solver_bench_COMPILED_SOLVER_CONFIG_SOURCE})
+    add_dependencies(cartpole_mpc_solver_bench cartpole_solver_bench_compiled_solver)
+    target_include_directories(cartpole_mpc_solver_bench PRIVATE ${CMAKE_SOURCE_DIR}/benchmark ${cartpole_solver_bench_CODEGEN_DIR})
+    target_link_libraries(cartpole_mpc_solver_bench PRIVATE casadi Eigen3::Eigen ${PROJECT_NAME} cartpole_solver_bench_compiled_solver Python3::Python Python3::NumPy pybind11::embed matplotlibcpp17::matplotlibcpp17)
 
 endif()
