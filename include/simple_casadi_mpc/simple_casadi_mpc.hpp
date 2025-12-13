@@ -2,6 +2,7 @@
 #include "casadi_utils.hpp"
 #include <Eigen/Dense>
 #include <casadi/casadi.hpp>
+#include <filesystem>
 #include <map>
 #include <memory>
 #include <vector>
@@ -219,6 +220,7 @@ private:
 
     friend class MPC;
     friend class JITMPC;
+    friend class CompiledMPC;
 };
 
 class MPC {
@@ -341,6 +343,11 @@ public:
     }
 
     casadi::MXDict casadi_prob() const { return casadi_prob_; }
+    const std::string &solver_name() const { return solver_name_; }
+    casadi::Dict solver_config() const { return config_; }
+    std::vector<casadi_int> equality_flags() const {
+        return std::vector<casadi_int>(equality_.begin(), equality_.end());
+    }
 
 protected:
     std::shared_ptr<Problem> prob_;
@@ -638,6 +645,99 @@ private:
     casadi::Function compiled_solver_;
     std::shared_ptr<Problem> prob_;
     std::string prob_name_;
+};
+
+class CompiledMPC : public MPC {
+public:
+    struct CompiledLibraryConfig {
+        std::string export_solver_name;
+        std::string shared_library_path;
+    };
+
+    template <class T>
+    CompiledMPC(const CompiledLibraryConfig &lib_config, std::shared_ptr<T> prob)
+        : MPC(prob), prob_(prob), lib_config_(lib_config) {
+        static_assert(std::is_base_of_v<Problem, T>, "prob must be based SimpleProb");
+        load_compiled_solver();
+    }
+
+    Eigen::VectorXd solve(Eigen::VectorXd x0, casadi::DMDict new_param_list = casadi::DMDict()) override {
+        using namespace casadi;
+
+        for (auto &[param_name, param] : new_param_list) {
+            prob_->param_list_[param_name].dm = param;
+        }
+
+        const size_t nx = prob_->nx();
+        const size_t nu = prob_->nu();
+
+        for (size_t l = 0; l < nx; l++) {
+            lbw_(l) = x0[l];
+            ubw_(l) = x0[l];
+        }
+
+        DMDict arg;
+        arg["x0"] = w0_;
+        arg["lbx"] = lbw_;
+        arg["ubx"] = ubw_;
+        arg["lbg"] = lbg_;
+        arg["ubg"] = ubg_;
+        arg["lam_x0"] = lam_x0_;
+        arg["lam_g0"] = lam_g0_;
+        param_vec_.clear();
+        param_vec_.reserve(prob_->param_list_.size());
+        for (auto &[param_name, param_pair] : prob_->param_list_) {
+            param_vec_.push_back(param_pair.dm);
+        }
+        arg["p"] = vertcat(param_vec_);
+        DMDict sol = compiled_solver_(arg);
+
+        w0_ = sol["x"];
+        lam_x0_ = sol["lam_x"];
+        lam_g0_ = sol["lam_g"];
+
+        Eigen::VectorXd opt_u(nu);
+        std::copy(w0_.ptr() + nx, w0_.ptr() + nx + nu, opt_u.data());
+
+        return opt_u;
+    }
+
+    template <class T>
+    static void generate_code(const std::string &export_solver_name, const std::string &export_dir, const std::string &solver_name = "ipopt",
+                              const casadi::Dict &solver_config = MPC::default_ipopt_config(), const casadi::Dict &codegen_options = {}) {
+        static_assert(std::is_base_of_v<Problem, T>, "Problem type must inherit from Problem");
+        namespace fs = std::filesystem;
+        auto prob = std::make_shared<T>();
+        MPC mpc(prob, solver_name, solver_config);
+
+        fs::path out_dir = fs::path(export_dir);
+        fs::create_directories(out_dir);
+        fs::path c_path = out_dir / (export_solver_name + ".c");
+
+        casadi::Dict solver_cfg = solver_config;
+        if (MPC::equality_required(solver_name, solver_cfg)) {
+            solver_cfg["equality"] = mpc.equality_flags();
+        }
+
+        casadi::Function solver = casadi::nlpsol(export_solver_name, solver_name, mpc.casadi_prob(), solver_cfg);
+        casadi::Dict opts = codegen_options;
+        if (opts.find("with_header") == opts.end())
+            opts["with_header"] = true;
+        casadi::CodeGenerator cg(export_solver_name, opts);
+        cg.add(solver);
+        cg.generate(out_dir.string() + "/");
+        std::cout << "Generated solver source at: " << c_path << std::endl;
+    }
+
+private:
+    void load_compiled_solver() { compiled_solver_ = casadi::external(lib_config_.export_solver_name, lib_config_.shared_library_path); }
+    virtual void build_solver() override {
+        // Compiled solver is loaded externally; do not construct a CasADi solver here.
+    }
+
+    casadi::Function compiled_solver_;
+    std::shared_ptr<Problem> prob_;
+    CompiledLibraryConfig lib_config_;
 };
 
 } // namespace simple_casadi_mpc
