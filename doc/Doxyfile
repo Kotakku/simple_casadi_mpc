@@ -1,7 +1,7 @@
 PROJECT_NAME           = "simple_casadi_mpc"
 OUTPUT_DIRECTORY       = build
 OUTPUT_LANGUAGE        = English
-HTML_COLORSTYLE        = LIGHT
+HTML_COLORSTYLE        = NONE
 
 INPUT                  = ../README.md \
                          ../include \
