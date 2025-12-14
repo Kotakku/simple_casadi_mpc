@@ -24,7 +24,9 @@ jobs:
           sudo apt-get install -y doxygen graphviz
 
       - name: Build docs
-        run: doxygen doc/Doxyfile
+        run: |
+          cd doc
+          doxygen Doxyfile
 
       - name: Deploy to GitHub Pages
         uses: JamesIves/github-pages-deploy-action@v4

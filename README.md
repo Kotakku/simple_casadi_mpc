@@ -36,7 +36,31 @@ target_link_libraries(my_target PRIVATE simple_casadi_mpc)
 - `JITMPC`: JIT-compiles on the first solve for faster subsequent runs; expect a startup lag (cacheable with ccache).
 - `CompiledMPC`: builds solver code at CMake time; best steady-state speed with no runtime lag.
 
-Limitation for `CompiledMPC`: the solver backend (IPOPT/FATROP) and its parameters are fixed at build time.
+Limitation for `CompiledMPC`: the solver backend (IPOPT/FATROP/...) and its parameters are fixed at build time.
+
+### Usage for CompiledMPC via CMake
+```cmake
+find_package(simple_casadi_mpc REQUIRED)
+
+# Generate a compiled solver (codegen step happens at build time)
+add_simple_casadi_mpc_codegen(
+  <solver_target_name>                  # e.g., my_problem
+  <codegen_cpp>                         # e.g., my_problem_codegen.cpp (derives Problem)
+  EXPORT_SOLVER_NAME <export_name>      # optional, default is <solver_target_name>_compiled_solver
+  INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR} # where your Problem header lives
+  SOLVER_NAME <casadi_solver>           # optional; default is fatrop (e.g., ipopt/fatrop/...)
+  # LINK_LIBS ...                       # optional; extra solver libs if needed
+)
+
+# Link your executable against the generated solver + simple_casadi_mpc
+add_executable(<your_exe> main.cpp
+                ${<solver_target_name>_COMPILED_SOLVER_CONFIG_SOURCE})
+target_include_directories(<your_exe> PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR} ${<solver_target_name>_CODEGEN_DIR})
+target_link_libraries(<your_exe> PRIVATE
+  simple_casadi_mpc::simple_casadi_mpc
+  ${<solver_target_name>_COMPILED_SOLVER})
+```
 
 ## Examples
 ### double_integrator_mpc_example
