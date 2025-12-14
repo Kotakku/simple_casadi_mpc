@@ -1,6 +1,7 @@
 PROJECT_NAME           = "simple_casadi_mpc"
 OUTPUT_DIRECTORY       = build
 OUTPUT_LANGUAGE        = English
+HTML_COLORSTYLE        = LIGHT
 
 INPUT                  = ../README.md \
                          ../include \
@@ -21,13 +22,16 @@ GENERATE_XML           = NO
 
 GENERATE_TREEVIEW      = YES
 DISABLE_INDEX          = NO
+HTML_DYNAMIC_MENUS     = YES
 
 HTML_OUTPUT            = html
 HTML_STYLESHEET        =
 HTML_EXTRA_STYLESHEET  = doxygen-awesome-css/doxygen-awesome.css \
                          doxygen-awesome-css/doxygen-awesome-sidebar-only.css \
-                         doxygen-awesome-css/doxygen-awesome-sidebar-only-darkmode-toggle.css
+                         doxygen-awesome-css/doxygen-awesome-sidebar-only-darkmode-toggle.css \
+                         custom.css
 HTML_EXTRA_FILES       = doxygen-awesome-css/doxygen-awesome-darkmode-toggle.js
+HTML_HEADER            = header.html
 
 ALPHABETICAL_INDEX     = YES
 SOURCE_BROWSER         = NO
