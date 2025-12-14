@@ -1,0 +1,23 @@
+:root {
+  --repo-link-bg: #2d6cdf;
+  --repo-link-text: #ffffff;
+}
+
+#projectrepo {
+  padding-left: 1em;
+  white-space: nowrap;
+}
+
+.repo-link {
+  display: inline-block;
+  padding: 6px 12px;
+  border-radius: 6px;
+  background: var(--repo-link-bg);
+  color: var(--repo-link-text);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.repo-link:hover {
+  filter: brightness(0.95);
+}
