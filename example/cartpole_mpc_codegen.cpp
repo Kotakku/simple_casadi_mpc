@@ -5,12 +5,12 @@ int main() {
   using namespace simple_casadi_mpc;
 
   // solver name
-  const std::string solver_name = "ipopt";
+  const std::string solver_name = "fatrop";
 
   // solver option
-  auto solver_config = MPC::default_ipopt_config();
-  // solver_config["fatrop.tol"] = 1e-4;
-  // solver_config["fatrop.acceptable_tol"] = 5e-4;
+  auto solver_config = MPC::default_fatrop_config();
+  solver_config["fatrop.tol"] = 1e-4;
+  solver_config["fatrop.acceptable_tol"] = 5e-4;
 
   // generated solver name
   const std::string export_solver_name = "cartpole_solver";
