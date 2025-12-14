@@ -2,21 +2,22 @@
 #include "simple_casadi_mpc/simple_casadi_mpc.hpp"
 
 int main() {
-    using namespace simple_casadi_mpc;
+  using namespace simple_casadi_mpc;
 
-    // solver name
-    const std::string solver_name = "fatrop";
+  // solver name
+  const std::string solver_name = "fatrop";
 
-    // solver option
-    auto solver_config = MPC::default_fatrop_config();
-    solver_config["fatrop.tol"] = 1e-4;
-    solver_config["fatrop.acceptable_tol"] = 5e-4;
+  // solver option
+  auto solver_config = MPC::default_fatrop_config();
+  solver_config["fatrop.tol"] = 1e-4;
+  solver_config["fatrop.acceptable_tol"] = 5e-4;
 
-    // generated solver name
-    const std::string export_solver_name = "cartpole_solver";
+  // generated solver name
+  const std::string export_solver_name = "cartpole_solver";
 
-    // output directory
-    const std::string export_dir = "./";
+  // output directory
+  const std::string export_dir = "./";
 
-    CompiledMPC::generate_code<CartpoleProb>(export_solver_name, export_dir, solver_name, solver_config);
+  CompiledMPC::generate_code<CartpoleProb>(export_solver_name, export_dir, solver_name,
+                                           solver_config);
 }

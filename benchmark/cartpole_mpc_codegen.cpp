@@ -16,5 +16,6 @@ int main() {
   // output directory
   const std::string export_dir = "./";
 
-  CompiledMPC::generate_code<CartpoleProb>(export_solver_name, export_dir, solver_name, solver_config);
+  CompiledMPC::generate_code<CartpoleProb>(export_solver_name, export_dir, solver_name,
+                                           solver_config);
 }
