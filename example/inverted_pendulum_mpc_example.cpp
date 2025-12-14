@@ -1,9 +1,14 @@
 #include "simple_casadi_mpc/simple_casadi_mpc.hpp"
-#include "thirdparty/matplotlib-cpp/matplotlibcpp.h"
 #include <casadi/casadi.hpp>
 #include <chrono>
 #include <iostream>
+#include <matplotlibcpp17/pyplot.h>
+#include <pybind11/embed.h>
+#include <pybind11/pybind11.h>
+#include <pybind11/stl.h>
 #include <string>
+
+using namespace pybind11::literals;
 
 class InvertedPendulumProb : public simple_casadi_mpc::Problem {
 public:
@@ -49,11 +54,11 @@ public:
   casadi::DM Q, R, Qf;
 };
 
-void animate(const std::vector<double> &angle, const std::vector<double> &u) {
+void animate(matplotlibcpp17::pyplot::PyPlot &plt, const std::vector<double> &angle,
+             const std::vector<double> &u) {
   (void)u;
-  namespace plt = matplotlibcpp;
   for (size_t i = 0; i < angle.size(); i += 3) {
-    plt::clf();
+    plt.clf();
 
     double pole_length = 0.5;
 
@@ -65,12 +70,12 @@ void animate(const std::vector<double> &angle, const std::vector<double> &u) {
     std::vector<double> pole_x_data = {pole_start_x, pole_end_x};
     std::vector<double> pole_y_data = {pole_start_y, pole_end_y};
 
-    plt::set_aspect(1.0);
-    plt::plot(pole_x_data, pole_y_data, "r-");
+    plt.gca().set_aspect(pybind11::make_tuple(1.0));
+    plt.plot(pybind11::make_tuple(pole_x_data, pole_y_data, "r-"));
     const double range_max = pole_length + 0.5;
-    plt::xlim(-range_max, range_max);
-    plt::ylim(-range_max, range_max);
-    plt::pause(0.01);
+    plt.xlim(pybind11::make_tuple(-range_max, range_max));
+    plt.ylim(pybind11::make_tuple(-range_max, range_max));
+    plt.pause(pybind11::make_tuple(0.01));
     // std::cout << i+1 << "/" << angle.size() << std::endl;
   }
 }
@@ -78,6 +83,8 @@ void animate(const std::vector<double> &angle, const std::vector<double> &u) {
 int main() {
   using namespace simple_casadi_mpc;
   std::cout << "inverted pendulum mpc example" << std::endl;
+  pybind11::scoped_interpreter guard{};
+  auto plt = matplotlibcpp17::pyplot::import();
   auto prob = std::make_shared<InvertedPendulumProb>();
   MPC mpc(prob);
 
@@ -112,20 +119,19 @@ int main() {
       std::chrono::duration_cast<std::chrono::microseconds>(t_all_end - t_all_start).count() * 1e-6;
   std::cout << "all time: " << all_time << std::endl;
 
-  namespace plt = matplotlibcpp;
-  plt::figure();
-  plt::named_plot("u", t_log, u_log);
-  plt::named_plot("angle", t_log, angle_log);
-  plt::legend();
-  plt::show();
+  plt.figure();
+  plt.plot(pybind11::make_tuple(t_log, u_log), pybind11::dict("label"_a = "u"));
+  plt.plot(pybind11::make_tuple(t_log, angle_log), pybind11::dict("label"_a = "angle"));
+  plt.legend();
+  plt.show();
 
-  plt::figure();
-  plt::plot(i_log, dt_log);
-  plt::xlabel("iteration");
-  plt::ylabel("MPC solve time [ms]");
-  plt::show();
+  plt.figure();
+  plt.plot(pybind11::make_tuple(i_log, dt_log));
+  plt.xlabel(pybind11::make_tuple("iteration"));
+  plt.ylabel(pybind11::make_tuple("MPC solve time [ms]"));
+  plt.show();
 
-  animate(angle_log, u_log);
+  animate(plt, angle_log, u_log);
 
   return 0;
 }
