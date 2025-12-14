@@ -1,0 +1,37 @@
+PROJECT_NAME           = "simple_casadi_mpc"
+OUTPUT_DIRECTORY       = build
+OUTPUT_LANGUAGE        = English
+
+INPUT                  = ../README.md \
+                         ../include \
+                         ../example
+RECURSIVE              = YES
+FILE_PATTERNS          = *.hpp \
+                         *.cpp \
+                         *.md
+EXCLUDE                = ../doc/doxygen-awesome-css
+EXCLUDE_PATTERNS       = */doxygen-awesome-css/*
+IMAGE_PATH             = ../gallery
+USE_MDFILE_AS_MAINPAGE = ../README.md
+
+GENERATE_LATEX         = NO
+GENERATE_RTF           = NO
+GENERATE_MAN           = NO
+GENERATE_XML           = NO
+
+GENERATE_TREEVIEW      = YES
+DISABLE_INDEX          = NO
+
+HTML_OUTPUT            = html
+HTML_STYLESHEET        =
+HTML_EXTRA_STYLESHEET  = doxygen-awesome-css/doxygen-awesome.css \
+                         doxygen-awesome-css/doxygen-awesome-sidebar-only.css \
+                         doxygen-awesome-css/doxygen-awesome-sidebar-only-darkmode-toggle.css
+HTML_EXTRA_FILES       = doxygen-awesome-css/doxygen-awesome-darkmode-toggle.js
+
+ALPHABETICAL_INDEX     = YES
+SOURCE_BROWSER         = NO
+INLINE_SOURCES         = NO
+
+QUIET                  = YES
+WARN_IF_UNDOCUMENTED   = NO
