@@ -1,15 +1,23 @@
 # simple_casadi_mpc
 
-C++からCasADiを用いてMPCを解くためのライブラリ
+Lightweight C++ utilities for building and solving MPC problems with CasADi. Includes runtime MPC, JIT-compiled MPC, and CMake-integrated compiled MPC solvers.
 
-# 依存関係
-- CasADi([インストール用スクリプト例](https://github.com/Kotakku/OptimLibSetupHub/blob/master/CasADi/install_casadi.sh))
+## Features
+- Three solver flavors: runtime `MPC`, `JITMPC` (first-call codegen), and `CompiledMPC` (build-time codegen).
+- CMake macros to generate compiled solvers alongside your build.
+- Reference examples with matplotlib plots and animations.
+- Doxygen docs styled with `doxygen-awesome-css` (submodule).
+
+## Dependencies
+- CasADi ([install script example](https://github.com/Kotakku/OptimLibSetupHub/blob/master/CasADi/install_casadi.sh))
+- IPOPT or FATROP (optional solver backends)
 - Eigen3
-- matplotlib(Example用)
+- Python3 + NumPy + pybind11
+- matplotlibcpp17 (examples/benchmarks use it via pybind11)
+- doxygen (for docs; uses `doc/doxygen-awesome-css` submodule)
 
-# インストール方法
-git cloneして以下を実行
-```
+## Build & install
+```bash
 mkdir build
 cd build
 cmake ..
@@ -17,59 +25,75 @@ make
 sudo make install
 ```
 
-# MPCソルバークラス
-## MPC
-実行時にProblemクラスからソルバーを構築し実行する基本的なソルバークラスです。
-シンボリック変数の評価のオーバーヘッドが大きいため後述する2つのソルバーよりパフォーマンスは劣りますが手軽に使えるため動作確認などに適しています。
+## CMake usage
+```cmake
+find_package(simple_casadi_mpc REQUIRED)
+target_link_libraries(my_target PRIVATE simple_casadi_mpc)
+```
 
-## JITMPC
-実行時に最初に内部ソルバーのJITコンパイルを行うソルバークラスです。
-シンボリック変数の評価オーバーヘッドなくMPCクラスよりパフォーマンスが高いですが、起動時に数秒〜数十秒のコンパイル分のラグが生じます。(ccacheが使える環境では二回目以降の実行時はビルド時間が短縮されます)
-MPCソルバーから置き換えるだけで簡単に使うことができます。
-シンボリック変数の評価オーバーヘッドがどの程度パフォーマンスに影響を及ぼしているかを確認する目的のとき、または1回目のタイムラグが許容でき高パフォーマンスなソルバーを用いたいときに適しています。
+## Solver overview
+- `MPC`: simplest runtime solver; easiest for quick validation.
+- `JITMPC`: JIT-compiles on the first solve for faster subsequent runs; expect a startup lag (cacheable with ccache).
+- `CompiledMPC`: builds solver code at CMake time; best steady-state speed with no runtime lag.
 
-## CompiledMPC
-cmakeマクロを使うことでソースのビルドを行うときに同時に内部ソルバーのビルドも行うことでJITMPCと同等のパフォーマンスを実行時のタイムラグなしに得ることができます。
-MPCで解く問題設定設定の仕様やソルバーのパラメータが確定し、とにかく高パフォーマンスなソルバーを使いたい場合に適しています。
+Limitation for `CompiledMPC`: the solver backend (IPOPT/FATROP) and its parameters are fixed at build time.
 
-### Limitation
-CompiledMPCはIPOPTやFATROPといった非線形最適化ソルバーの種類や設定パラメータはビルド時に決定されるため、実行時に動的に変更することはできません。
+## Examples
+### double_integrator_mpc_example
+Drives a frictionless point mass to the origin (position and velocity feedback).
 
+From: [example/double_integrator_mpc_example.cpp](https://github.com/Kotakku/simple_casadi_mpc/blob/main/example/double_integrator_mpc_example.cpp)
 
-# Examples
-## double_integrator_mpc_example
-摩擦がない物体の直動運動のようなもの
-座標1、速度1から開始して座標0に収束させる
+![](gallery/example/double_integrator_mpc_example.png)
 
-![](pic/simple_mpc_example.png)
+### cartpole_mpc_example
+Cartpole swing-up and balance (problem setup from the linked gists).
 
-## cartpole_mpc_example
-cartpoleタイプの倒立振子の振り上げ
-問題設定は以下のリンクのものを仕様
+From: [example/cartpole_mpc_example.cpp](https://github.com/Kotakku/simple_casadi_mpc/blob/main/example/cartpole_mpc_example.cpp)
 
 https://gist.github.com/mayataka/ef178130d52b5b06d4dd8bb2c8384c54
 https://gist.github.com/mayataka/bc08faa63a94d8b48ceba77cc79c7ccc
 
-![](pic/cartpole_mpc_example.png)
+![](gallery/example/cartpole_mpc_example.png)
+
+![](gallery/example/cartpole.gif)
+
+### inverted_pendulum_mpc_example
+Rotary inverted pendulum swing-up with torque limits that force a multi-phase motion.
+
+From: [example/inverted_pendulum_mpc_example.cpp](https://github.com/Kotakku/simple_casadi_mpc/blob/main/example/inverted_pendulum_mpc_example.cpp)
+
+![](gallery/example/inverted_pendulum_mpc_example.png)
+
+![](gallery/example/inverted_pendulum.gif)
+
+### diff_drive_mpc_example
+Differential-drive robot from top-left to bottom-right while avoiding circular obstacles and respecting velocity limits.
+
+From: [example/diff_drive_mpc_example.cpp](https://github.com/Kotakku/simple_casadi_mpc/blob/main/example/diff_drive_mpc_example.cpp)
+
+![](gallery/example/diff_drive_mpc_example.png)
+
+![](gallery/example/diff_drive.gif)
+
+## Benchmarks
+Runtime comparisons for cartpole MPC solver variants.
+
+![](gallery/benchmark/bench_cartpole_mpc_solve_time_comparison.png)
+
+![](gallery/benchmark/bench_cartpole_mpc_solve_time_comparison_zoom.png)
+
+![](gallery/benchmark/bench_cartpole_jit_vs_compiled_mpc_solve_time_comparison.png)
 
 
-https://github.com/Kotakku/simple_casadi_mpc/assets/25411427/d4d3ffab-cfee-47f4-a080-d1ec638afa4c
-
-
-## inverted_pendulum_mpc_example
-回転軸にモーターがついてるタイプの倒立振子の振り上げ
-トルク制約からアームのように振り上げができないように設定してあるため振り上げに助走が入る
-
-![](pic/inverted_pendulum_mpc_example.png)
-
-
-https://github.com/Kotakku/simple_casadi_mpc/assets/25411427/8fdee0d8-ef3e-4fd3-b0ae-d3c87431c2a9
-
-
-## diff_drive_mpc_example
-差動二輪で左上から右下まで移動する
-その際に円状のオブジェクトの衝突を避けるように制約を追加している
-
-![](pic/diff_drive_mpc_example.png)
-
-https://github.com/Kotakku/simple_casadi_mpc/assets/25411427/29644ae1-57d9-422b-9fd1-40c99919b0fc
+## Documentation
+1) Fetch submodules:
+```bash
+git submodule update --init --recursive
+```
+2) Generate docs:
+```bash
+cd doc
+doxygen Doxyfile
+```
+3) Open `doc/build/html/index.html`.
