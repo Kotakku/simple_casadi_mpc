@@ -26,7 +26,6 @@ jobs:
       - name: Build docs
         run: |
           cd doc
-          ls doxygen-awesome-css
           doxygen Doxyfile
 
       - name: Deploy to GitHub Pages
