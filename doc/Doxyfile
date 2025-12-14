@@ -20,8 +20,8 @@ GENERATE_RTF           = NO
 GENERATE_MAN           = NO
 GENERATE_XML           = NO
 
-GENERATE_TREEVIEW      = YES
-DISABLE_INDEX          = NO
+GENERATE_TREEVIEW      = NO
+DISABLE_INDEX          = YES
 HTML_DYNAMIC_MENUS     = YES
 
 HTML_OUTPUT            = html
