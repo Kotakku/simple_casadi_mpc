@@ -1,0 +1,13 @@
+<map id="simple_casadi_mpc::Problem" name="simple_casadi_mpc::Problem">
+<area shape="rect" id="Node000001" title=" " alt="" coords="45,5,203,45"/>
+<area shape="rect" id="Node000002" href="$classCartpoleProb.html" title=" " alt="" coords="5,93,112,119"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="85,57,57,95,53,91,81,54"/>
+<area shape="poly" id="edge2_Node000001_Node000002" title=" " alt="" coords="102,58,71,95,66,91,97,54"/>
+<area shape="poly" id="edge3_Node000001_Node000002" title=" " alt="" coords="118,58,84,95,80,91,115,55"/>
+<area shape="rect" id="Node000003" href="$classDiffDriveProb.html" title=" " alt="" coords="136,93,245,119"/>
+<area shape="poly" id="edge4_Node000001_Node000003" title=" " alt="" coords="151,54,183,91,179,95,147,58"/>
+<area shape="rect" id="Node000004" href="$classDoubleIntegratorProb.html" title=" " alt="" coords="270,93,431,119"/>
+<area shape="poly" id="edge5_Node000001_Node000004" title=" " alt="" coords="192,47,318,91,316,96,191,52"/>
+<area shape="rect" id="Node000005" href="$classInvertedPendulumProb.html" title=" " alt="" coords="456,93,627,119"/>
+<area shape="poly" id="edge6_Node000001_Node000005" title=" " alt="" coords="218,41,481,91,480,96,217,47"/>
+</map>
