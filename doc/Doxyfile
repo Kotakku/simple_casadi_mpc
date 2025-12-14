@@ -19,8 +19,8 @@ GENERATE_RTF           = NO
 GENERATE_MAN           = NO
 GENERATE_XML           = NO
 
-GENERATE_TREEVIEW      = NO
-DISABLE_INDEX          = YES
+GENERATE_TREEVIEW      = YES
+DISABLE_INDEX          = NO
 HTML_DYNAMIC_MENUS     = YES
 
 HTML_OUTPUT            = html
@@ -29,8 +29,11 @@ HTML_EXTRA_STYLESHEET  = doxygen-awesome-css/doxygen-awesome.css \
                          doxygen-awesome-css/doxygen-awesome-sidebar-only.css \
                          doxygen-awesome-css/doxygen-awesome-sidebar-only-darkmode-toggle.css \
                          custom.css
-HTML_EXTRA_FILES       = doxygen-awesome-css/doxygen-awesome-darkmode-toggle.js
-HTML_HEADER            = doxygen-awesome-css/doxygen-awesome-header.html
+HTML_EXTRA_FILES       = doxygen-awesome-css/doxygen-awesome-darkmode-toggle.js \
+                         doxygen-awesome-css/doxygen-awesome-fragment-copy-button.js \
+                         doxygen-awesome-css/doxygen-awesome-paragraph-link.js \
+                         doxygen-awesome-css/doxygen-awesome-interactive-toc.js
+HTML_HEADER            = header.html
 
 ALPHABETICAL_INDEX     = YES
 SOURCE_BROWSER         = NO
