@@ -2,12 +2,6 @@
 
 Lightweight C++ utilities for building and solving MPC problems with CasADi. Includes runtime MPC, JIT-compiled MPC, and CMake-integrated compiled MPC solvers.
 
-## Features
-- Three solver flavors: runtime `MPC`, `JITMPC` (first-call codegen), and `CompiledMPC` (build-time codegen).
-- CMake macros to generate compiled solvers alongside your build.
-- Reference examples with matplotlib plots and animations.
-- Doxygen docs styled with `doxygen-awesome-css` (submodule).
-
 ## Dependencies
 - CasADi ([install script example](https://github.com/Kotakku/OptimLibSetupHub/blob/master/CasADi/install_casadi.sh))
 - IPOPT or FATROP (optional solver backends)
