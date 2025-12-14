@@ -27,8 +27,7 @@ struct TestResult {
   double all_time;
 };
 
-template <class T>
-TestResult run_simulation(T &mpc, std::shared_ptr<CartpoleProb> prob) {
+template <class T> TestResult run_simulation(T &mpc, std::shared_ptr<CartpoleProb> prob) {
   casadi::DMDict param_list;
   double target_pos = -0.5;
   param_list["x_ref"] = {target_pos, M_PI, 0, 0};
@@ -60,7 +59,8 @@ TestResult run_simulation(T &mpc, std::shared_ptr<CartpoleProb> prob) {
     Eigen::VectorXd u = mpc.solve(x, param_list);
     auto t_end = std::chrono::high_resolution_clock::now();
     x = prob->simulate(x, u, dt);
-    const double solve_time = std::chrono::duration_cast<std::chrono::microseconds>(t_end - t_start).count() * 1e-6;
+    const double solve_time =
+        std::chrono::duration_cast<std::chrono::microseconds>(t_end - t_start).count() * 1e-6;
     result.target_log[i] = target_pos;
     result.t_log[i] = i * dt;
     result.i_log[i] = i;
@@ -70,7 +70,8 @@ TestResult run_simulation(T &mpc, std::shared_ptr<CartpoleProb> prob) {
     result.solve_time_log[i] = solve_time * 1e3;
   }
   auto t_all_end = std::chrono::system_clock::now();
-  result.all_time = std::chrono::duration_cast<std::chrono::microseconds>(t_all_end - t_all_start).count() * 1e-6;
+  result.all_time =
+      std::chrono::duration_cast<std::chrono::microseconds>(t_all_end - t_all_start).count() * 1e-6;
   return result;
 }
 
@@ -114,7 +115,8 @@ int main() {
     plt.figure();
     plt.plot(pybind11::make_tuple(result.t_log, result.u_log), pybind11::dict("label"_a = "u"));
     plt.plot(pybind11::make_tuple(result.t_log, result.x_log), pybind11::dict("label"_a = "x"));
-    plt.plot(pybind11::make_tuple(result.t_log, result.angle_log), pybind11::dict("label"_a = "angle"));
+    plt.plot(pybind11::make_tuple(result.t_log, result.angle_log),
+             pybind11::dict("label"_a = "angle"));
     plt.legend();
     plt.savefig(Args(file_name));
   };
@@ -130,16 +132,22 @@ int main() {
 
   // compare solve time
   plt.figure();
-  plt.plot(pybind11::make_tuple(mpc_result.i_log, mpc_result.solve_time_log), pybind11::dict("label"_a = "MPC (IPOPT) " + solve_time_str(mpc_result)));
-  plt.plot(pybind11::make_tuple(mpc_fatrop_result.i_log, mpc_fatrop_result.solve_time_log), pybind11::dict("label"_a = "MPC (FATROP) " + solve_time_str(mpc_fatrop_result)));
-  plt.plot(pybind11::make_tuple(jit_mpc_result.i_log, jit_mpc_result.solve_time_log), pybind11::dict("label"_a = "JIT MPC (FATROP) " + solve_time_str(jit_mpc_result)));
-  plt.plot(pybind11::make_tuple(compiled_mpc_retult.i_log, compiled_mpc_retult.solve_time_log), pybind11::dict("label"_a = "Compiled MPC (FATROP) " + solve_time_str(compiled_mpc_retult)));
+  plt.plot(pybind11::make_tuple(mpc_result.i_log, mpc_result.solve_time_log),
+           pybind11::dict("label"_a = "MPC (IPOPT) " + solve_time_str(mpc_result)));
+  plt.plot(pybind11::make_tuple(mpc_fatrop_result.i_log, mpc_fatrop_result.solve_time_log),
+           pybind11::dict("label"_a = "MPC (FATROP) " + solve_time_str(mpc_fatrop_result)));
+  plt.plot(pybind11::make_tuple(jit_mpc_result.i_log, jit_mpc_result.solve_time_log),
+           pybind11::dict("label"_a = "JIT MPC (FATROP) " + solve_time_str(jit_mpc_result)));
+  plt.plot(
+      pybind11::make_tuple(compiled_mpc_retult.i_log, compiled_mpc_retult.solve_time_log),
+      pybind11::dict("label"_a = "Compiled MPC (FATROP) " + solve_time_str(compiled_mpc_retult)));
   plt.legend();
   plt.xlabel(pybind11::make_tuple("iteration"));
   plt.ylabel(pybind11::make_tuple("MPC solve time [ms]"));
 
   // set y limit and mpc_result max solve time + 3.0 ms
-  double max_solve_time = *std::max_element(mpc_result.solve_time_log.begin(), mpc_result.solve_time_log.end());
+  double max_solve_time =
+      *std::max_element(mpc_result.solve_time_log.begin(), mpc_result.solve_time_log.end());
   plt.ylim(pybind11::make_tuple(0, max_solve_time + 3.0));
 
   plt.savefig(Args("bench_cartpole_mpc_solve_time_comparison.png"));
@@ -149,13 +157,18 @@ int main() {
 
   // compare JIT vs Compiled
   plt.figure();
-  plt.plot(pybind11::make_tuple(jit_mpc_result.i_log, jit_mpc_result.solve_time_log), pybind11::dict("label"_a = "JIT MPC (FATROP) " + solve_time_str(jit_mpc_result)));
-  plt.plot(pybind11::make_tuple(compiled_mpc_retult.i_log, compiled_mpc_retult.solve_time_log), pybind11::dict("label"_a = "Compiled MPC (FATROP) " + solve_time_str(compiled_mpc_retult)));
+  plt.plot(pybind11::make_tuple(jit_mpc_result.i_log, jit_mpc_result.solve_time_log),
+           pybind11::dict("label"_a = "JIT MPC (FATROP) " + solve_time_str(jit_mpc_result)));
+  plt.plot(
+      pybind11::make_tuple(compiled_mpc_retult.i_log, compiled_mpc_retult.solve_time_log),
+      pybind11::dict("label"_a = "Compiled MPC (FATROP) " + solve_time_str(compiled_mpc_retult)));
   plt.legend();
   plt.xlabel(pybind11::make_tuple("iteration"));
   plt.ylabel(pybind11::make_tuple("MPC solve time [ms]"));
-  max_solve_time = std::max(*std::max_element(jit_mpc_result.solve_time_log.begin(), jit_mpc_result.solve_time_log.end()),
-                            *std::max_element(compiled_mpc_retult.solve_time_log.begin(), compiled_mpc_retult.solve_time_log.end()));
+  max_solve_time = std::max(
+      *std::max_element(jit_mpc_result.solve_time_log.begin(), jit_mpc_result.solve_time_log.end()),
+      *std::max_element(compiled_mpc_retult.solve_time_log.begin(),
+                        compiled_mpc_retult.solve_time_log.end()));
   plt.ylim(pybind11::make_tuple(0, max_solve_time + 0.1));
 
   plt.savefig(Args("bench_cartpole_jit_vs_compiled_mpc_solve_time_comparison.png"));

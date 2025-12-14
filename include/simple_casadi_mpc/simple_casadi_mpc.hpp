@@ -40,10 +40,7 @@ public:
     Discretized,
   };
 
-  enum class ConstraintType {
-    Equality,
-    Inequality
-  };
+  enum class ConstraintType { Equality, Inequality };
 
   Problem(DynamicsType dyn_type, size_t _nx, size_t _nu, size_t _horizon, double _dt)
       : dyn_type_(dyn_type), nx_(_nx), nu_(_nu), horizon_(_horizon), dt_(_dt) {
@@ -86,7 +83,8 @@ public:
 
   Eigen::VectorXd simulate(Eigen::VectorXd x0, Eigen::MatrixXd u, double dt) {
     assert(dyn_type_ != DynamicsType::Discretized);
-    auto dyn = std::bind(&Problem::dynamics_eval, this, std::placeholders::_1, std::placeholders::_2);
+    auto dyn =
+        std::bind(&Problem::dynamics_eval, this, std::placeholders::_1, std::placeholders::_2);
     switch (dyn_type_) {
     case DynamicsType::ContinuesForwardEuler:
       return integrate_dynamics_forward_euler<Eigen::VectorXd>(dt, x0, u, dyn);
@@ -146,7 +144,8 @@ public:
     }
   }
 
-  void add_constraint(ConstraintType type, std::function<casadi::MX(casadi::MX, casadi::MX)> constrinat) {
+  void add_constraint(ConstraintType type,
+                      std::function<casadi::MX(casadi::MX, casadi::MX)> constrinat) {
     if (type == ConstraintType::Equality) {
       equality_constrinats_.push_back(constrinat);
     } else {
@@ -182,7 +181,8 @@ public:
   }
 
   // Helper function to define a reference trajectory parameter
-  // The trajectory should have shape (nx, horizon) where each column is the reference state at that horizon step
+  // The trajectory should have shape (nx, horizon) where each column is the reference state at that
+  // horizon step
   casadi::MX reference_trajectory(std::string name = "x_ref") {
     return parameter(name, nx_, horizon_);
   }
@@ -226,28 +226,25 @@ private:
 class MPC {
 public:
   static casadi::Dict default_ipopt_config() {
-    casadi::Dict config = {
-        {"calc_lam_p", true},
-        {"calc_lam_x", true},
-        {"ipopt.sb", "yes"},
-        {"ipopt.print_level", 0},
-        {"print_time", false},
-        {"ipopt.warm_start_init_point", "yes"},
-        {"expand", true}};
+    casadi::Dict config = {{"calc_lam_p", true},  {"calc_lam_x", true},
+                           {"ipopt.sb", "yes"},   {"ipopt.print_level", 0},
+                           {"print_time", false}, {"ipopt.warm_start_init_point", "yes"},
+                           {"expand", true}};
     return config;
   }
 
   static casadi::Dict default_qpoases_config() {
-    casadi::Dict config = {{"calc_lam_p", true},
-                           {"calc_lam_x", true},
-                           {"max_iter", 100},
-                           {"print_header", false},
-                           {"print_iteration", false},
-                           {"print_status", false},
-                           {"print_time", false},
-                           {"qpsol", "qpoases"},
-                           {"qpsol_options", casadi::Dict{{"enableRegularisation", true}, {"printLevel", "none"}}},
-                           {"expand", true}};
+    casadi::Dict config = {
+        {"calc_lam_p", true},
+        {"calc_lam_x", true},
+        {"max_iter", 100},
+        {"print_header", false},
+        {"print_iteration", false},
+        {"print_status", false},
+        {"print_time", false},
+        {"qpsol", "qpoases"},
+        {"qpsol_options", casadi::Dict{{"enableRegularisation", true}, {"printLevel", "none"}}},
+        {"expand", true}};
     return config;
   }
 
@@ -280,7 +277,8 @@ public:
   }
 
   template <class T>
-  MPC(std::shared_ptr<T> prob, std::string solver_name = "ipopt", casadi::Dict config = default_ipopt_config())
+  MPC(std::shared_ptr<T> prob, std::string solver_name = "ipopt",
+      casadi::Dict config = default_ipopt_config())
       : prob_(prob), solver_name_(solver_name), config_(config) {
     using namespace casadi;
     static_assert(std::is_base_of_v<Problem, T>, "prob must be based SimpleProb");
@@ -300,7 +298,8 @@ public:
     build_solver();
   }
 
-  virtual Eigen::VectorXd solve(Eigen::VectorXd x0, casadi::DMDict new_param_list = casadi::DMDict()) {
+  virtual Eigen::VectorXd solve(Eigen::VectorXd x0,
+                                casadi::DMDict new_param_list = casadi::DMDict()) {
     using namespace casadi;
 
     // Set new parameter
@@ -448,8 +447,8 @@ protected:
     // 3. Map application
     MX X_next_cal = F.map(N)(std::vector<MX>{X(Slice(), Slice(0, N)), U})[0];
 
-    // Calculate stage costs individually for each horizon step to support trajectory-based references
-    // This allows each step to use the correct index k in stage_cost()
+    // Calculate stage costs individually for each horizon step to support trajectory-based
+    // references This allows each step to use the correct index k in stage_cost()
     std::vector<MX> stage_costs;
     stage_costs.reserve(N);
     for (casadi_int i = 0; i < N; ++i) {
@@ -507,15 +506,21 @@ protected:
         lbw_numeric.insert(lbw_numeric.end(), nx, 0.0);
         ubw_numeric.insert(ubw_numeric.end(), nx, 0.0);
       } else {
-        lbw_numeric.insert(lbw_numeric.end(), x_bounds[i - 1].first.data(), x_bounds[i - 1].first.data() + nx);
-        ubw_numeric.insert(ubw_numeric.end(), x_bounds[i - 1].second.data(), x_bounds[i - 1].second.data() + nx);
+        lbw_numeric.insert(lbw_numeric.end(), x_bounds[i - 1].first.data(),
+                           x_bounds[i - 1].first.data() + nx);
+        ubw_numeric.insert(ubw_numeric.end(), x_bounds[i - 1].second.data(),
+                           x_bounds[i - 1].second.data() + nx);
       }
-      lbw_numeric.insert(lbw_numeric.end(), u_bounds[i].first.data(), u_bounds[i].first.data() + nu);
-      ubw_numeric.insert(ubw_numeric.end(), u_bounds[i].second.data(), u_bounds[i].second.data() + nu);
+      lbw_numeric.insert(lbw_numeric.end(), u_bounds[i].first.data(),
+                         u_bounds[i].first.data() + nu);
+      ubw_numeric.insert(ubw_numeric.end(), u_bounds[i].second.data(),
+                         u_bounds[i].second.data() + nu);
     }
     // Bounds for x_N
-    lbw_numeric.insert(lbw_numeric.end(), x_bounds[N - 1].first.data(), x_bounds[N - 1].first.data() + nx);
-    ubw_numeric.insert(ubw_numeric.end(), x_bounds[N - 1].second.data(), x_bounds[N - 1].second.data() + nx);
+    lbw_numeric.insert(lbw_numeric.end(), x_bounds[N - 1].first.data(),
+                       x_bounds[N - 1].first.data() + nx);
+    ubw_numeric.insert(ubw_numeric.end(), x_bounds[N - 1].second.data(),
+                       x_bounds[N - 1].second.data() + nx);
 
     // Bounds for g
     // Continuity constraints are all zero
@@ -558,9 +563,7 @@ protected:
     lam_g0_ = DM::zeros(vertcat(g_vec).size1(), 1);
   }
 
-  virtual void build_solver() {
-    solver_ = nlpsol("solver", solver_name_, casadi_prob_, config_);
-  }
+  virtual void build_solver() { solver_ = nlpsol("solver", solver_name_, casadi_prob_, config_); }
 
 private:
 };
@@ -568,7 +571,8 @@ private:
 class JITMPC : public MPC {
 public:
   template <class T>
-  JITMPC(const std::string &prob_name, std::shared_ptr<T> prob, std::string solver_name = "ipopt", casadi::Dict config = MPC::default_ipopt_config(), const bool verbose = false)
+  JITMPC(const std::string &prob_name, std::shared_ptr<T> prob, std::string solver_name = "ipopt",
+         casadi::Dict config = MPC::default_ipopt_config(), const bool verbose = false)
       : MPC(prob, solver_name, config), prob_(prob), prob_name_(prob_name) {
     static_assert(std::is_base_of_v<Problem, T>, "prob must be based SimpleProb");
 
@@ -579,7 +583,8 @@ public:
       std::cout << "Code generation completed." << std::endl;
   }
 
-  Eigen::VectorXd solve(Eigen::VectorXd x0, casadi::DMDict new_param_list = casadi::DMDict()) override {
+  Eigen::VectorXd solve(Eigen::VectorXd x0,
+                        casadi::DMDict new_param_list = casadi::DMDict()) override {
     using namespace casadi;
 
     for (auto &[param_name, param] : new_param_list) {
@@ -661,7 +666,8 @@ public:
     load_compiled_solver();
   }
 
-  Eigen::VectorXd solve(Eigen::VectorXd x0, casadi::DMDict new_param_list = casadi::DMDict()) override {
+  Eigen::VectorXd solve(Eigen::VectorXd x0,
+                        casadi::DMDict new_param_list = casadi::DMDict()) override {
     using namespace casadi;
 
     for (auto &[param_name, param] : new_param_list) {
@@ -703,8 +709,10 @@ public:
   }
 
   template <class T>
-  static void generate_code(const std::string &export_solver_name, const std::string &export_dir, const std::string &solver_name = "ipopt",
-                            const casadi::Dict &solver_config = MPC::default_ipopt_config(), const casadi::Dict &codegen_options = {}) {
+  static void generate_code(const std::string &export_solver_name, const std::string &export_dir,
+                            const std::string &solver_name = "ipopt",
+                            const casadi::Dict &solver_config = MPC::default_ipopt_config(),
+                            const casadi::Dict &codegen_options = {}) {
     static_assert(std::is_base_of_v<Problem, T>, "Problem type must inherit from Problem");
     namespace fs = std::filesystem;
     auto prob = std::make_shared<T>();
@@ -719,7 +727,8 @@ public:
       solver_cfg["equality"] = mpc.equality_flags();
     }
 
-    casadi::Function solver = casadi::nlpsol(export_solver_name, solver_name, mpc.casadi_prob(), solver_cfg);
+    casadi::Function solver =
+        casadi::nlpsol(export_solver_name, solver_name, mpc.casadi_prob(), solver_cfg);
     casadi::Dict opts = codegen_options;
     if (opts.find("with_header") == opts.end())
       opts["with_header"] = true;
@@ -730,7 +739,10 @@ public:
   }
 
 private:
-  void load_compiled_solver() { compiled_solver_ = casadi::external(lib_config_.export_solver_name, lib_config_.shared_library_path); }
+  void load_compiled_solver() {
+    compiled_solver_ =
+        casadi::external(lib_config_.export_solver_name, lib_config_.shared_library_path);
+  }
   virtual void build_solver() override {
     // Compiled solver is loaded externally; do not construct a CasADi solver here.
   }

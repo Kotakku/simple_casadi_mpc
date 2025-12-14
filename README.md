@@ -38,14 +38,14 @@ CompiledMPCはIPOPTやFATROPといった非線形最適化ソルバーの種類�
 
 # Examples
 ## double_integrator_mpc_example
-摩擦がない物体の直動運動のようなもの  
-座標1、速度1から開始して座標0に収束させる  
+摩擦がない物体の直動運動のようなもの
+座標1、速度1から開始して座標0に収束させる
 
 ![](pic/simple_mpc_example.png)
 
 ## cartpole_mpc_example
-cartpoleタイプの倒立振子の振り上げ  
-問題設定は以下のリンクのものを仕様  
+cartpoleタイプの倒立振子の振り上げ
+問題設定は以下のリンクのものを仕様
 
 https://gist.github.com/mayataka/ef178130d52b5b06d4dd8bb2c8384c54
 https://gist.github.com/mayataka/bc08faa63a94d8b48ceba77cc79c7ccc
@@ -73,6 +73,3 @@ https://github.com/Kotakku/simple_casadi_mpc/assets/25411427/8fdee0d8-ef3e-4fd3-
 ![](pic/diff_drive_mpc_example.png)
 
 https://github.com/Kotakku/simple_casadi_mpc/assets/25411427/29644ae1-57d9-422b-9fd1-40c99919b0fc
-
-
-
