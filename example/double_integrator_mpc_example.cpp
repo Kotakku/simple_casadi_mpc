@@ -1,13 +1,20 @@
 #include "double_integrator_problem.hpp"
-#include "thirdparty/matplotlib-cpp/matplotlibcpp.h"
 #include <casadi/casadi.hpp>
 #include <iostream>
+#include <matplotlibcpp17/pyplot.h>
+#include <pybind11/embed.h>
+#include <pybind11/pybind11.h>
+#include <pybind11/stl.h>
 #include <string>
+
+using namespace pybind11::literals;
 
 int main() {
   using namespace simple_casadi_mpc;
 
   std::cout << "double integrator mpc example" << std::endl;
+  pybind11::scoped_interpreter guard{};
+  auto plt = matplotlibcpp17::pyplot::import();
   auto prob = std::make_shared<DoubleIntegratorProb>();
   MPC mpc(prob);
 
@@ -28,13 +35,12 @@ int main() {
   }
 
   // plot
-  namespace plt = matplotlibcpp;
-  plt::figure();
-  plt::named_plot("u", t_log, u_log);
-  plt::named_plot("pos", t_log, x_log);
-  plt::named_plot("vel", t_log, v_log);
-  plt::legend();
-  plt::show();
+  plt.figure();
+  plt.plot(pybind11::make_tuple(t_log, u_log), pybind11::dict("label"_a = "u"));
+  plt.plot(pybind11::make_tuple(t_log, x_log), pybind11::dict("label"_a = "pos"));
+  plt.plot(pybind11::make_tuple(t_log, v_log), pybind11::dict("label"_a = "vel"));
+  plt.legend();
+  plt.show();
 
   return 0;
 }

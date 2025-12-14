@@ -1,10 +1,15 @@
 #include "simple_casadi_mpc/simple_casadi_mpc.hpp"
-#include "thirdparty/matplotlib-cpp/matplotlibcpp.h"
 #include <casadi/casadi.hpp>
 #include <chrono>
 #include <iostream>
+#include <matplotlibcpp17/pyplot.h>
 #include <numeric>
+#include <pybind11/embed.h>
+#include <pybind11/pybind11.h>
+#include <pybind11/stl.h>
 #include <string>
+
+using namespace pybind11::literals;
 
 class CartpoleProb : public simple_casadi_mpc::Problem {
 public:
@@ -62,10 +67,10 @@ public:
   casadi::DM Q, R, Qf;
 };
 
-void animate(const std::vector<double> &x, const std::vector<double> &angle,
-             const std::vector<double> &u, const std::vector<double> &target, size_t skip = 4) {
+void animate(matplotlibcpp17::pyplot::PyPlot &plt, const std::vector<double> &x,
+             const std::vector<double> &angle, const std::vector<double> &u,
+             const std::vector<double> &target, size_t skip = 4) {
   (void)u;
-  namespace plt = matplotlibcpp;
 
   double cart_width = 0.5;
   double cart_height = 0.2;
@@ -75,7 +80,7 @@ void animate(const std::vector<double> &x, const std::vector<double> &angle,
   double x_min = *std::min_element(x.begin(), x.end());
   double range_max = std::max(std::abs(x_max), std::abs(x_min)) + cart_width;
   for (size_t i = 0; i < x.size(); i += skip) {
-    plt::clf();
+    plt.clf();
 
     double cart_x = x[i];
     double cart_y = 0.0;
@@ -93,14 +98,14 @@ void animate(const std::vector<double> &x, const std::vector<double> &angle,
     std::vector<double> target_x_data = {target[i], target[i]};
     std::vector<double> target_y_data = {-range_max, range_max};
 
-    plt::set_aspect(1.0);
-    plt::plot(target_x_data, target_y_data, "k--");
-    plt::plot(cart_x_data, cart_y_data, "b-");
-    plt::plot(pole_x_data, pole_y_data, "r-");
+    plt.gca().set_aspect(pybind11::make_tuple(1.0));
+    plt.plot(pybind11::make_tuple(target_x_data, target_y_data, "k--"));
+    plt.plot(pybind11::make_tuple(cart_x_data, cart_y_data, "b-"));
+    plt.plot(pybind11::make_tuple(pole_x_data, pole_y_data, "r-"));
 
-    plt::xlim(-range_max, range_max);
-    plt::ylim(-range_max, range_max);
-    plt::pause(0.01);
+    plt.xlim(pybind11::make_tuple(-range_max, range_max));
+    plt.ylim(pybind11::make_tuple(-range_max, range_max));
+    plt.pause(pybind11::make_tuple(0.01));
     // std::cout << i+1 << "/" << x.size() << std::endl;
   }
 }
@@ -108,6 +113,8 @@ void animate(const std::vector<double> &x, const std::vector<double> &angle,
 int main() {
   using namespace simple_casadi_mpc;
   std::cout << "Cartpole MPC vs JITMPC Comparison" << std::endl;
+  pybind11::scoped_interpreter guard{};
+  auto plt = matplotlibcpp17::pyplot::import();
   auto prob = std::make_shared<CartpoleProb>();
 
   // Create both regular MPC and JITMPC
@@ -208,45 +215,46 @@ int main() {
   std::cout << "JITMPC average: " << codegen_time / sim_len * 1000 << " ms/iter" << std::endl;
   std::cout << "\nSpeedup factor: " << regular_time / codegen_time << "x" << std::endl;
 
-  namespace plt = matplotlibcpp;
-
   // Plot state trajectories
-  plt::figure();
-  plt::subplot(3, 1, 1);
-  plt::named_plot("Regular MPC", t_log, x_log_regular);
-  plt::named_plot("JITMPC", t_log, x_log_codegen);
-  plt::ylabel("Position [m]");
-  plt::legend();
-  plt::grid(true);
+  auto fig = plt.figure();
+  plt.subplot(311);
+  plt.plot(pybind11::make_tuple(t_log, x_log_regular), pybind11::dict("label"_a = "Regular MPC"));
+  plt.plot(pybind11::make_tuple(t_log, x_log_codegen), pybind11::dict("label"_a = "JITMPC"));
+  plt.ylabel(pybind11::make_tuple("Position [m]"));
+  plt.legend();
+  plt.grid(pybind11::make_tuple(true));
 
-  plt::subplot(3, 1, 2);
-  plt::named_plot("Regular MPC", t_log, angle_log_regular);
-  plt::named_plot("JITMPC", t_log, angle_log_codegen);
-  plt::ylabel("Angle [rad]");
-  plt::legend();
-  plt::grid(true);
+  plt.subplot(312);
+  plt.plot(pybind11::make_tuple(t_log, angle_log_regular),
+           pybind11::dict("label"_a = "Regular MPC"));
+  plt.plot(pybind11::make_tuple(t_log, angle_log_codegen), pybind11::dict("label"_a = "JITMPC"));
+  plt.ylabel(pybind11::make_tuple("Angle [rad]"));
+  plt.legend();
+  plt.grid(pybind11::make_tuple(true));
 
-  plt::subplot(3, 1, 3);
-  plt::named_plot("Regular MPC", t_log, u_log_regular);
-  plt::named_plot("JITMPC", t_log, u_log_codegen);
-  plt::xlabel("Time [s]");
-  plt::ylabel("Control [N]");
-  plt::legend();
-  plt::grid(true);
+  plt.subplot(313);
+  plt.plot(pybind11::make_tuple(t_log, u_log_regular), pybind11::dict("label"_a = "Regular MPC"));
+  plt.plot(pybind11::make_tuple(t_log, u_log_codegen), pybind11::dict("label"_a = "JITMPC"));
+  plt.xlabel(pybind11::make_tuple("Time [s]"));
+  plt.ylabel(pybind11::make_tuple("Control [N]"));
+  plt.legend();
+  plt.grid(pybind11::make_tuple(true));
 
-  plt::suptitle("State Trajectories Comparison");
-  plt::show();
+  fig.suptitle(pybind11::make_tuple("State Trajectories Comparison"));
+  plt.show();
 
   // Plot timing comparison
-  plt::figure();
-  plt::named_plot("MPC", i_log, dt_log_regular, "b-");
-  plt::named_plot("MPC (with CodeGen)", i_log, dt_log_codegen, "r-");
-  plt::xlabel("Iteration");
-  plt::ylabel("Solve time [ms]");
-  plt::title("MPC Performance Comparison");
-  plt::legend();
-  plt::ylim(0.0, *std::max_element(dt_log_regular.begin(), dt_log_regular.end()) * 1.1);
-  plt::grid(true);
+  plt.figure();
+  plt.plot(pybind11::make_tuple(i_log, dt_log_regular, "b-"), pybind11::dict("label"_a = "MPC"));
+  plt.plot(pybind11::make_tuple(i_log, dt_log_codegen, "r-"),
+           pybind11::dict("label"_a = "MPC (with CodeGen)"));
+  plt.xlabel(pybind11::make_tuple("Iteration"));
+  plt.ylabel(pybind11::make_tuple("Solve time [ms]"));
+  plt.title(pybind11::make_tuple("MPC Performance Comparison"));
+  plt.legend();
+  plt.ylim(pybind11::make_tuple(
+      0.0, *std::max_element(dt_log_regular.begin(), dt_log_regular.end()) * 1.1));
+  plt.grid(pybind11::make_tuple(true));
 
   // Add average lines
   double avg_regular =
@@ -256,20 +264,28 @@ int main() {
   std::vector<double> avg_regular_line(sim_len, avg_regular);
   std::vector<double> avg_codegen_line(sim_len, avg_codegen);
 
+  plt.plot(pybind11::make_tuple(i_log, avg_regular_line),
+           pybind11::dict("label"_a = "Avg Regular"));
+  plt.plot(pybind11::make_tuple(i_log, avg_codegen_line),
+           pybind11::dict("label"_a = "Avg CodeGen"));
+
+  auto perf_ax = plt.gca();
+
   // Add text annotations
   std::string text_regular = "Avg Regular: " + std::to_string(avg_regular).substr(0, 5) + " ms";
   std::string text_codegen = "Avg CodeGen: " + std::to_string(avg_codegen).substr(0, 5) + " ms";
   std::string text_speedup =
       "Speedup: " + std::to_string(avg_regular / avg_codegen).substr(0, 4) + "x";
 
-  plt::text(sim_len * 0.6, avg_regular * 1.1, text_regular);
-  plt::text(sim_len * 0.6, avg_codegen * 1.1, text_codegen);
-  plt::text(sim_len * 0.6, avg_regular + (avg_regular + avg_codegen) / 2, text_speedup);
+  perf_ax.text(pybind11::make_tuple(sim_len * 0.6, avg_regular * 1.1, text_regular));
+  perf_ax.text(pybind11::make_tuple(sim_len * 0.6, avg_codegen * 1.1, text_codegen));
+  perf_ax.text(pybind11::make_tuple(sim_len * 0.6, avg_regular + (avg_regular + avg_codegen) / 2,
+                                    text_speedup));
 
-  plt::show();
+  plt.show();
 
   // Animate only JITMPC result
-  animate(x_log_codegen, angle_log_codegen, u_log_codegen, target_log);
+  animate(plt, x_log_codegen, angle_log_codegen, u_log_codegen, target_log);
 
   return 0;
 }

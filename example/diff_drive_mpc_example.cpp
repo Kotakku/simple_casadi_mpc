@@ -1,9 +1,14 @@
 #include "simple_casadi_mpc/simple_casadi_mpc.hpp"
-#include "thirdparty/matplotlib-cpp/matplotlibcpp.h"
 #include <casadi/casadi.hpp>
 #include <chrono>
 #include <iostream>
+#include <matplotlibcpp17/pyplot.h>
+#include <pybind11/embed.h>
+#include <pybind11/pybind11.h>
+#include <pybind11/stl.h>
 #include <string>
+
+using namespace pybind11::literals;
 
 class DiffDriveProb : public simple_casadi_mpc::Problem {
 public:
@@ -114,37 +119,36 @@ get_rectangle_vertices(double x, double y, double theta, double width, double he
   return {x_data, y_data};
 }
 
-void draw_circle(double x, double y, double radius) {
-  namespace plt = matplotlibcpp;
+void draw_circle(matplotlibcpp17::pyplot::PyPlot &plt, double x, double y, double radius) {
   std::vector<double> x_data(100), y_data(100);
   for (size_t i = 0; i < 100; i++) {
     x_data[i] = radius * cos(2 * M_PI / 100 * i) + x;
     y_data[i] = radius * sin(2 * M_PI / 100 * i) + y;
   }
-  plt::plot(x_data, y_data, "k-");
+  plt.plot(pybind11::make_tuple(x_data, y_data, "k-"));
 }
 
-void animate(const std::vector<double> &x, const std::vector<double> &y,
-             const std::vector<double> &theta, Eigen::Vector3d start, Eigen::Vector3d goal,
-             size_t skip = 4) {
-  namespace plt = matplotlibcpp;
+void animate(matplotlibcpp17::pyplot::PyPlot &plt, const std::vector<double> &x,
+             const std::vector<double> &y, const std::vector<double> &theta, Eigen::Vector3d start,
+             Eigen::Vector3d goal, size_t skip = 4) {
+  (void)start;
+  (void)goal;
   for (size_t i = 0; i < x.size(); i += skip) {
-    plt::clf();
+    plt.clf();
     auto [paint_x_data, paint_y_data] = get_rectangle_vertices(x[i], y[i], theta[i], 0.2, 0.3);
-    plt::set_aspect(1.0);
-    plt::plot(paint_x_data, paint_y_data, "b-");
+    plt.gca().set_aspect(pybind11::make_tuple(1.0));
+    plt.plot(pybind11::make_tuple(paint_x_data, paint_y_data, "b-"));
 
     std::vector<double> dir_x_data = {x[i], x[i] + cos(theta[i]) * 0.2};
     std::vector<double> dir_y_data = {y[i], y[i] + sin(theta[i]) * 0.2};
-    plt::plot(dir_x_data, dir_y_data, "r-");
+    plt.plot(pybind11::make_tuple(dir_x_data, dir_y_data, "r-"));
 
-    double arrow_length = 0.3;
     // plt::arrow(start(0), start(1), arrow_length*cos(start(2)), arrow_length*sin(start(2)), "k",
     // "k", 0.1, 0.1); plt::arrow(goal(0), goal(1), arrow_length*cos(goal(2)),
     // arrow_length*sin(goal(2)), "k", "k", 0.1, 0.1);
 
-    draw_circle(0, 0.5, 0.2);
-    draw_circle(0, -0.5, 0.2);
+    draw_circle(plt, 0, 0.5, 0.2);
+    draw_circle(plt, 0, -0.5, 0.2);
 
     double x_max = *std::max_element(x.begin(), x.end());
     double x_min = *std::min_element(x.begin(), x.end());
@@ -153,9 +157,9 @@ void animate(const std::vector<double> &x, const std::vector<double> &y,
     double range_max_x = std::max(std::abs(x_max), std::abs(x_min));
     double range_max_y = std::max(std::abs(y_max), std::abs(y_min));
     double range_max = std::max(range_max_x, range_max_y) + 0.5;
-    plt::xlim(-range_max, range_max);
-    plt::ylim(-range_max, range_max);
-    plt::pause(0.01);
+    plt.xlim(pybind11::make_tuple(-range_max, range_max));
+    plt.ylim(pybind11::make_tuple(-range_max, range_max));
+    plt.pause(pybind11::make_tuple(0.01));
     // std::cout << i+1 << "/" << x.size() << std::endl;
   }
 }
@@ -163,6 +167,8 @@ void animate(const std::vector<double> &x, const std::vector<double> &y,
 int main() {
   using namespace simple_casadi_mpc;
   std::cout << "diff drive mpc example" << std::endl;
+  pybind11::scoped_interpreter guard{};
+  auto plt = matplotlibcpp17::pyplot::import();
   auto prob = std::make_shared<DiffDriveProb>();
   MPC mpc(prob);
 
@@ -202,30 +208,29 @@ int main() {
       std::chrono::duration_cast<std::chrono::microseconds>(t_all_end - t_all_start).count() * 1e-6;
   std::cout << "all time: " << all_time << std::endl;
 
-  namespace plt = matplotlibcpp;
-  plt::figure();
-  plt::named_plot("x", t_log, x_log);
-  plt::named_plot("y", t_log, y_log);
-  plt::named_plot("theta", t_log, theta_log);
-  plt::legend();
-  plt::show();
+  plt.figure();
+  plt.plot(pybind11::make_tuple(t_log, x_log), pybind11::dict("label"_a = "x"));
+  plt.plot(pybind11::make_tuple(t_log, y_log), pybind11::dict("label"_a = "y"));
+  plt.plot(pybind11::make_tuple(t_log, theta_log), pybind11::dict("label"_a = "theta"));
+  plt.legend();
+  plt.show();
 
-  plt::figure();
-  plt::named_plot("vel", t_log, v_log);
-  plt::named_plot("omega", t_log, omega_log);
-  plt::legend();
-  plt::show();
+  plt.figure();
+  plt.plot(pybind11::make_tuple(t_log, v_log), pybind11::dict("label"_a = "vel"));
+  plt.plot(pybind11::make_tuple(t_log, omega_log), pybind11::dict("label"_a = "omega"));
+  plt.legend();
+  plt.show();
 
-  plt::figure();
-  plt::plot(i_log, dt_log);
-  plt::xlabel("iteration");
-  plt::ylabel("MPC solve time [ms]");
-  plt::show();
+  plt.figure();
+  plt.plot(pybind11::make_tuple(i_log, dt_log));
+  plt.xlabel(pybind11::make_tuple("iteration"));
+  plt.ylabel(pybind11::make_tuple("MPC solve time [ms]"));
+  plt.show();
 
-  plt::figure();
+  plt.figure();
   Eigen::Vector3d start(-1, 0, 0);
   Eigen::Vector3d goal(1, 0, 0);
-  animate(x_log, y_log, theta_log, start, goal);
+  animate(plt, x_log, y_log, theta_log, start, goal);
 
   return 0;
 }

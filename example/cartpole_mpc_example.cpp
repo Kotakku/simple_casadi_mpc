@@ -1,9 +1,14 @@
 #include "simple_casadi_mpc/simple_casadi_mpc.hpp"
-#include "thirdparty/matplotlib-cpp/matplotlibcpp.h"
 #include <casadi/casadi.hpp>
 #include <chrono>
 #include <iostream>
+#include <matplotlibcpp17/pyplot.h>
+#include <pybind11/embed.h>
+#include <pybind11/pybind11.h>
+#include <pybind11/stl.h>
 #include <string>
+
+using namespace pybind11::literals;
 
 class CartpoleProb : public simple_casadi_mpc::Problem {
 public:
@@ -61,10 +66,10 @@ public:
   casadi::DM Q, R, Qf;
 };
 
-void animate(const std::vector<double> &x, const std::vector<double> &angle,
-             const std::vector<double> &u, const std::vector<double> &target, size_t skip = 4) {
+void animate(matplotlibcpp17::pyplot::PyPlot &plt, const std::vector<double> &x,
+             const std::vector<double> &angle, const std::vector<double> &u,
+             const std::vector<double> &target, size_t skip = 4) {
   (void)u;
-  namespace plt = matplotlibcpp;
 
   double cart_width = 0.5;
   double cart_height = 0.2;
@@ -74,7 +79,7 @@ void animate(const std::vector<double> &x, const std::vector<double> &angle,
   double x_min = *std::min_element(x.begin(), x.end());
   double range_max = std::max(std::abs(x_max), std::abs(x_min)) + cart_width;
   for (size_t i = 0; i < x.size(); i += skip) {
-    plt::clf();
+    plt.clf();
 
     double cart_x = x[i];
     double cart_y = 0.0;
@@ -92,14 +97,14 @@ void animate(const std::vector<double> &x, const std::vector<double> &angle,
     std::vector<double> target_x_data = {target[i], target[i]};
     std::vector<double> target_y_data = {-range_max, range_max};
 
-    plt::set_aspect(1.0);
-    plt::plot(target_x_data, target_y_data, "k--");
-    plt::plot(cart_x_data, cart_y_data, "b-");
-    plt::plot(pole_x_data, pole_y_data, "r-");
+    plt.gca().set_aspect(pybind11::make_tuple(1.0));
+    plt.plot(pybind11::make_tuple(target_x_data, target_y_data, "k--"));
+    plt.plot(pybind11::make_tuple(cart_x_data, cart_y_data, "b-"));
+    plt.plot(pybind11::make_tuple(pole_x_data, pole_y_data, "r-"));
 
-    plt::xlim(-range_max, range_max);
-    plt::ylim(-range_max, range_max);
-    plt::pause(0.01);
+    plt.xlim(pybind11::make_tuple(-range_max, range_max));
+    plt.ylim(pybind11::make_tuple(-range_max, range_max));
+    plt.pause(pybind11::make_tuple(0.01));
     // std::cout << i+1 << "/" << x.size() << std::endl;
   }
 }
@@ -107,6 +112,8 @@ void animate(const std::vector<double> &x, const std::vector<double> &angle,
 int main() {
   using namespace simple_casadi_mpc;
   std::cout << "cartpole mpc example" << std::endl;
+  pybind11::scoped_interpreter guard{};
+  auto plt = matplotlibcpp17::pyplot::import();
   auto prob = std::make_shared<CartpoleProb>();
   MPC mpc(prob);
 
@@ -159,21 +166,20 @@ int main() {
       std::chrono::duration_cast<std::chrono::microseconds>(t_all_end - t_all_start).count() * 1e-6;
   std::cout << "all time: " << all_time << std::endl;
 
-  namespace plt = matplotlibcpp;
-  plt::figure();
-  plt::named_plot("u", t_log, u_log);
-  plt::named_plot("x", t_log, x_log);
-  plt::named_plot("angle", t_log, angle_log);
-  plt::legend();
-  plt::show();
+  plt.figure();
+  plt.plot(pybind11::make_tuple(t_log, u_log), pybind11::dict("label"_a = "u"));
+  plt.plot(pybind11::make_tuple(t_log, x_log), pybind11::dict("label"_a = "x"));
+  plt.plot(pybind11::make_tuple(t_log, angle_log), pybind11::dict("label"_a = "angle"));
+  plt.legend();
+  plt.show();
 
-  plt::figure();
-  plt::plot(i_log, dt_log);
-  plt::xlabel("iteration");
-  plt::ylabel("MPC solve time [ms]");
-  plt::show();
+  plt.figure();
+  plt.plot(pybind11::make_tuple(i_log, dt_log));
+  plt.xlabel(pybind11::make_tuple("iteration"));
+  plt.ylabel(pybind11::make_tuple("MPC solve time [ms]"));
+  plt.show();
 
-  animate(x_log, angle_log, u_log, target_log);
+  animate(plt, x_log, angle_log, u_log, target_log);
 
   return 0;
 }
