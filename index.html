@@ -108,14 +108,6 @@ $(document).ready(function(){initNavTree('index.html',''); initResizable(); });
 <div class="contents">
 <div class="textblock"><p><a class="anchor" id="md__2home_2runner_2work_2simple__casadi__mpc_2simple__casadi__mpc_2README"></a> Lightweight C++ utilities for building and solving MPC problems with CasADi. Includes runtime MPC, JIT-compiled MPC, and CMake-integrated compiled MPC solvers.</p>
 <h1><a class="anchor" id="autotoc_md1"></a>
-Features</h1>
-<ul>
-<li>Three solver flavors: runtime <code>MPC</code>, <code>JITMPC</code> (first-call codegen), and <code>CompiledMPC</code> (build-time codegen).</li>
-<li>CMake macros to generate compiled solvers alongside your build.</li>
-<li>Reference examples with matplotlib plots and animations.</li>
-<li>Doxygen docs styled with <code>doxygen-awesome-css</code> (submodule).</li>
-</ul>
-<h1><a class="anchor" id="autotoc_md2"></a>
 Dependencies</h1>
 <ul>
 <li>CasADi (<a href="https://github.com/Kotakku/OptimLibSetupHub/blob/master/CasADi/install_casadi.sh">install script example</a>)</li>
@@ -125,18 +117,18 @@ Dependencies</h1>
 <li>matplotlibcpp17 (examples/benchmarks use it via pybind11)</li>
 <li>doxygen (for docs; uses <code>doc/doxygen-awesome-css</code> submodule)</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md3"></a>
+<h1><a class="anchor" id="autotoc_md2"></a>
 Build &amp; install</h1>
 <div class="fragment"><div class="line">mkdir build</div>
 <div class="line">cd build</div>
 <div class="line">cmake ..</div>
 <div class="line">make</div>
 <div class="line">sudo make install</div>
-</div><!-- fragment --><h1><a class="anchor" id="autotoc_md4"></a>
+</div><!-- fragment --><h1><a class="anchor" id="autotoc_md3"></a>
 CMake usage</h1>
 <div class="fragment"><div class="line">find_package(simple_casadi_mpc REQUIRED)</div>
 <div class="line">target_link_libraries(my_target PRIVATE simple_casadi_mpc)</div>
-</div><!-- fragment --><h1><a class="anchor" id="autotoc_md5"></a>
+</div><!-- fragment --><h1><a class="anchor" id="autotoc_md4"></a>
 Solver overview</h1>
 <ul>
 <li><code>MPC</code>: simplest runtime solver; easiest for quick validation.</li>
@@ -144,7 +136,7 @@ Solver overview</h1>
 <li><code>CompiledMPC</code>: builds solver code at CMake time; best steady-state speed with no runtime lag.</li>
 </ul>
 <p>Limitation for <code>CompiledMPC</code>: the solver backend (IPOPT/FATROP/...) and its parameters are fixed at build time.</p>
-<h2><a class="anchor" id="autotoc_md6"></a>
+<h2><a class="anchor" id="autotoc_md5"></a>
 Usage for CompiledMPC via CMake</h2>
 <div class="fragment"><div class="line">find_package(simple_casadi_mpc REQUIRED)</div>
 <div class="line"> </div>
@@ -166,16 +158,16 @@ Usage for CompiledMPC via CMake</h2>
 <div class="line">target_link_libraries(&lt;your_exe&gt; PRIVATE</div>
 <div class="line">  simple_casadi_mpc::simple_casadi_mpc</div>
 <div class="line">  ${&lt;solver_target_name&gt;_COMPILED_SOLVER})</div>
-</div><!-- fragment --><h1><a class="anchor" id="autotoc_md7"></a>
+</div><!-- fragment --><h1><a class="anchor" id="autotoc_md6"></a>
 Examples</h1>
-<h2><a class="anchor" id="autotoc_md8"></a>
+<h2><a class="anchor" id="autotoc_md7"></a>
 double_integrator_mpc_example</h2>
 <p>Drives a frictionless point mass to the origin (position and velocity feedback).</p>
 <p>From: <a href="https://github.com/Kotakku/simple_casadi_mpc/blob/main/example/double_integrator_mpc_example.cpp">example/double_integrator_mpc_example.cpp</a></p>
 <div class="image">
 <img src="double_integrator_mpc_example.png" alt=""/>
 </div>
-    <h2><a class="anchor" id="autotoc_md9"></a>
+    <h2><a class="anchor" id="autotoc_md8"></a>
 cartpole_mpc_example</h2>
 <p>Cartpole swing-up and balance (problem setup from the linked gists).</p>
 <p>From: <a href="https://github.com/Kotakku/simple_casadi_mpc/blob/main/example/cartpole_mpc_example.cpp">example/cartpole_mpc_example.cpp</a></p>
@@ -186,7 +178,7 @@ cartpole_mpc_example</h2>
     <div class="image">
 <img src="cartpole.gif" alt=""/>
 </div>
-    <h2><a class="anchor" id="autotoc_md10"></a>
+    <h2><a class="anchor" id="autotoc_md9"></a>
 inverted_pendulum_mpc_example</h2>
 <p>Rotary inverted pendulum swing-up with torque limits that force a multi-phase motion.</p>
 <p>From: <a href="https://github.com/Kotakku/simple_casadi_mpc/blob/main/example/inverted_pendulum_mpc_example.cpp">example/inverted_pendulum_mpc_example.cpp</a></p>
@@ -196,7 +188,7 @@ inverted_pendulum_mpc_example</h2>
     <div class="image">
 <img src="inverted_pendulum.gif" alt=""/>
 </div>
-    <h2><a class="anchor" id="autotoc_md11"></a>
+    <h2><a class="anchor" id="autotoc_md10"></a>
 diff_drive_mpc_example</h2>
 <p>Differential-drive robot from top-left to bottom-right while avoiding circular obstacles and respecting velocity limits.</p>
 <p>From: <a href="https://github.com/Kotakku/simple_casadi_mpc/blob/main/example/diff_drive_mpc_example.cpp">example/diff_drive_mpc_example.cpp</a></p>
@@ -206,7 +198,7 @@ diff_drive_mpc_example</h2>
     <div class="image">
 <img src="diff_drive.gif" alt=""/>
 </div>
-    <h1><a class="anchor" id="autotoc_md12"></a>
+    <h1><a class="anchor" id="autotoc_md11"></a>
 Benchmarks</h1>
 <p>Runtime comparisons for cartpole MPC solver variants.</p>
 <div class="image">
@@ -218,7 +210,7 @@ Benchmarks</h1>
     <div class="image">
 <img src="bench_cartpole_jit_vs_compiled_mpc_solve_time_comparison.png" alt=""/>
 </div>
-    <h1><a class="anchor" id="autotoc_md13"></a>
+    <h1><a class="anchor" id="autotoc_md12"></a>
 Documentation</h1>
 <p>1) Fetch submodules: </p><div class="fragment"><div class="line">git submodule update --init --recursive</div>
 </div><!-- fragment --><p> 2) Generate docs: </p><div class="fragment"><div class="line">cd doc</div>

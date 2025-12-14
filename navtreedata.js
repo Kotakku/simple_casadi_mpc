@@ -25,21 +25,20 @@
 var NAVTREE =
 [
   [ "simple_casadi_mpc", "index.html", [
-    [ "Features", "index.html#autotoc_md1", null ],
-    [ "Dependencies", "index.html#autotoc_md2", null ],
-    [ "Build & install", "index.html#autotoc_md3", null ],
-    [ "CMake usage", "index.html#autotoc_md4", null ],
-    [ "Solver overview", "index.html#autotoc_md5", [
-      [ "Usage for CompiledMPC via CMake", "index.html#autotoc_md6", null ]
+    [ "Dependencies", "index.html#autotoc_md1", null ],
+    [ "Build & install", "index.html#autotoc_md2", null ],
+    [ "CMake usage", "index.html#autotoc_md3", null ],
+    [ "Solver overview", "index.html#autotoc_md4", [
+      [ "Usage for CompiledMPC via CMake", "index.html#autotoc_md5", null ]
     ] ],
-    [ "Examples", "index.html#autotoc_md7", [
-      [ "double_integrator_mpc_example", "index.html#autotoc_md8", null ],
-      [ "cartpole_mpc_example", "index.html#autotoc_md9", null ],
-      [ "inverted_pendulum_mpc_example", "index.html#autotoc_md10", null ],
-      [ "diff_drive_mpc_example", "index.html#autotoc_md11", null ]
+    [ "Examples", "index.html#autotoc_md6", [
+      [ "double_integrator_mpc_example", "index.html#autotoc_md7", null ],
+      [ "cartpole_mpc_example", "index.html#autotoc_md8", null ],
+      [ "inverted_pendulum_mpc_example", "index.html#autotoc_md9", null ],
+      [ "diff_drive_mpc_example", "index.html#autotoc_md10", null ]
     ] ],
-    [ "Benchmarks", "index.html#autotoc_md12", null ],
-    [ "Documentation", "index.html#autotoc_md13", null ],
+    [ "Benchmarks", "index.html#autotoc_md11", null ],
+    [ "Documentation", "index.html#autotoc_md12", null ],
     [ "Classes", "annotated.html", [
       [ "Class List", "annotated.html", "annotated_dup" ],
       [ "Class Index", "classes.html", null ],
