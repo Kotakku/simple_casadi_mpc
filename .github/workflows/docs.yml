@@ -27,6 +27,7 @@ jobs:
         run: |
           cd doc
           doxygen Doxyfile
+          touch build/html/.nojekyll
 
       - name: Deploy to GitHub Pages
         uses: JamesIves/github-pages-deploy-action@v4
