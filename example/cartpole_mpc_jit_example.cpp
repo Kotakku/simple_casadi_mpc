@@ -245,16 +245,15 @@ int main() {
 
   // Plot timing comparison
   plt.figure();
-  plt.plot(pybind11::make_tuple(i_log, dt_log_regular, "b-"),
-           pybind11::dict("label"_a = "MPC"));
+  plt.plot(pybind11::make_tuple(i_log, dt_log_regular, "b-"), pybind11::dict("label"_a = "MPC"));
   plt.plot(pybind11::make_tuple(i_log, dt_log_codegen, "r-"),
            pybind11::dict("label"_a = "MPC (with CodeGen)"));
   plt.xlabel(pybind11::make_tuple("Iteration"));
   plt.ylabel(pybind11::make_tuple("Solve time [ms]"));
   plt.title(pybind11::make_tuple("MPC Performance Comparison"));
   plt.legend();
-  plt.ylim(
-      pybind11::make_tuple(0.0, *std::max_element(dt_log_regular.begin(), dt_log_regular.end()) * 1.1));
+  plt.ylim(pybind11::make_tuple(
+      0.0, *std::max_element(dt_log_regular.begin(), dt_log_regular.end()) * 1.1));
   plt.grid(pybind11::make_tuple(true));
 
   // Add average lines

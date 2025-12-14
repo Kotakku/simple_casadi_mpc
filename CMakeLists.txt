@@ -55,35 +55,59 @@ if(BUILD_EXAMPLES)
   target_include_directories(double_integrator_mpc_example
                              PRIVATE ${CMAKE_SOURCE_DIR}/example)
   target_link_libraries(
-    double_integrator_mpc_example PRIVATE casadi Eigen3::Eigen ${PROJECT_NAME}
-                                          Python3::Python Python3::NumPy
-                                          pybind11::embed
-                                          matplotlibcpp17::matplotlibcpp17)
+    double_integrator_mpc_example
+    PRIVATE casadi
+            Eigen3::Eigen
+            ${PROJECT_NAME}
+            Python3::Python
+            Python3::NumPy
+            pybind11::embed
+            matplotlibcpp17::matplotlibcpp17)
 
   add_executable(cartpole_mpc_example example/cartpole_mpc_example.cpp)
   target_link_libraries(
-    cartpole_mpc_example PRIVATE casadi Eigen3::Eigen ${PROJECT_NAME}
-                                 Python3::Python Python3::NumPy pybind11::embed
-                                 matplotlibcpp17::matplotlibcpp17)
+    cartpole_mpc_example
+    PRIVATE casadi
+            Eigen3::Eigen
+            ${PROJECT_NAME}
+            Python3::Python
+            Python3::NumPy
+            pybind11::embed
+            matplotlibcpp17::matplotlibcpp17)
 
   add_executable(inverted_pendulum_mpc_example
                  example/inverted_pendulum_mpc_example.cpp)
   target_link_libraries(
-    inverted_pendulum_mpc_example PRIVATE casadi Eigen3::Eigen ${PROJECT_NAME}
-                                          Python3::Python Python3::NumPy pybind11::embed
-                                          matplotlibcpp17::matplotlibcpp17)
+    inverted_pendulum_mpc_example
+    PRIVATE casadi
+            Eigen3::Eigen
+            ${PROJECT_NAME}
+            Python3::Python
+            Python3::NumPy
+            pybind11::embed
+            matplotlibcpp17::matplotlibcpp17)
 
   add_executable(diff_drive_mpc_example example/diff_drive_mpc_example.cpp)
   target_link_libraries(
-    diff_drive_mpc_example PRIVATE casadi Eigen3::Eigen ${PROJECT_NAME}
-                                   Python3::Python Python3::NumPy pybind11::embed
-                                   matplotlibcpp17::matplotlibcpp17)
+    diff_drive_mpc_example
+    PRIVATE casadi
+            Eigen3::Eigen
+            ${PROJECT_NAME}
+            Python3::Python
+            Python3::NumPy
+            pybind11::embed
+            matplotlibcpp17::matplotlibcpp17)
 
   add_executable(cartpole_mpc_jit_example example/cartpole_mpc_jit_example.cpp)
   target_link_libraries(
-    cartpole_mpc_jit_example PRIVATE casadi Eigen3::Eigen ${PROJECT_NAME}
-                                     Python3::Python Python3::NumPy pybind11::embed
-                                     matplotlibcpp17::matplotlibcpp17)
+    cartpole_mpc_jit_example
+    PRIVATE casadi
+            Eigen3::Eigen
+            ${PROJECT_NAME}
+            Python3::Python
+            Python3::NumPy
+            pybind11::embed
+            matplotlibcpp17::matplotlibcpp17)
 
   add_simple_casadi_mpc_codegen(
     double_integrator_problem
