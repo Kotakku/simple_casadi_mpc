@@ -290,3 +290,6 @@ ARGS="$ARGS -DWITH_DEPRECATED_FEATURES=OFF"
 cmake .. $ARGS
 make -j$(nproc)
 sudo make install
+
+# Update library cache so linker can find libcasadi
+sudo ldconfig

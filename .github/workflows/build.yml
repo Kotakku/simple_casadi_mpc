@@ -10,6 +10,9 @@ on:
 jobs:
   build:
     runs-on: ubuntu-24.04
+    env:
+      CASADI_PREFIX: /home/runner/casadi-install
+      MATPLOTLIBCPP17_PREFIX: /home/runner/matplotlibcpp17-install
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -44,7 +47,7 @@ jobs:
           ARGS=""
           # Release build
           ARGS="$ARGS -DCMAKE_BUILD_TYPE=Release"
-          ARGS="$ARGS -DCMAKE_INSTALL_PREFIX=$HOME/casadi-install"
+          ARGS="$ARGS -DCMAKE_INSTALL_PREFIX=$CASADI_PREFIX"
 
           # NLP Solver
           ARGS="$ARGS -DWITH_IPOPT=ON"
@@ -81,39 +84,45 @@ jobs:
           mkdir build && cd build
           cmake .. \
             -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_INSTALL_PREFIX=$HOME/matplotlibcpp17-install \
+            -DCMAKE_INSTALL_PREFIX=$MATPLOTLIBCPP17_PREFIX \
             -DADD_DEMO=OFF
           make -j$(nproc)
           make install
 
       - name: Build simple_casadi_mpc with EXAMPLES
+        env:
+          LD_LIBRARY_PATH: ${{ env.CASADI_PREFIX }}/lib
         run: |
           mkdir -p build && cd build
           cmake .. \
             -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_PREFIX_PATH="$HOME/casadi-install;$HOME/matplotlibcpp17-install" \
+            -DCMAKE_PREFIX_PATH="$CASADI_PREFIX;$MATPLOTLIBCPP17_PREFIX" \
             -DBUILD_EXAMPLES=ON \
             -DBUILD_BENCHMARKS=OFF
           make -j$(nproc)
 
       - name: Build simple_casadi_mpc with BENCHMARKS
+        env:
+          LD_LIBRARY_PATH: ${{ env.CASADI_PREFIX }}/lib
         run: |
           rm -rf build
           mkdir -p build && cd build
           cmake .. \
             -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_PREFIX_PATH="$HOME/casadi-install;$HOME/matplotlibcpp17-install" \
+            -DCMAKE_PREFIX_PATH="$CASADI_PREFIX;$MATPLOTLIBCPP17_PREFIX" \
             -DBUILD_EXAMPLES=OFF \
             -DBUILD_BENCHMARKS=ON
           make -j$(nproc)
 
       - name: Build simple_casadi_mpc with ALL
+        env:
+          LD_LIBRARY_PATH: ${{ env.CASADI_PREFIX }}/lib
         run: |
           rm -rf build
           mkdir -p build && cd build
           cmake .. \
             -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_PREFIX_PATH="$HOME/casadi-install;$HOME/matplotlibcpp17-install" \
+            -DCMAKE_PREFIX_PATH="$CASADI_PREFIX;$MATPLOTLIBCPP17_PREFIX" \
             -DBUILD_EXAMPLES=ON \
             -DBUILD_BENCHMARKS=ON
           make -j$(nproc)
