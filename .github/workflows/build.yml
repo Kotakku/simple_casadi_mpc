@@ -93,6 +93,8 @@ jobs:
         env:
           LIBRARY_PATH: ${{ env.CASADI_PREFIX }}/lib
           LD_LIBRARY_PATH: ${{ env.CASADI_PREFIX }}/lib
+          CPATH: ${{ env.CASADI_PREFIX }}/include
+          CPLUS_INCLUDE_PATH: ${{ env.CASADI_PREFIX }}/include
         run: |
           rm -rf build
           mkdir -p build && cd build
