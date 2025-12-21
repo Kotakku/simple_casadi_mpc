@@ -1,0 +1,106 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      CASADI_PREFIX: /home/runner/casadi-install
+      MATPLOTLIBCPP17_PREFIX: /home/runner/matplotlibcpp17-install
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            git cmake gcc g++ gfortran pkg-config \
+            liblapack-dev coinor-libipopt-dev \
+            libeigen3-dev \
+            python3-dev python3-numpy python3-matplotlib \
+            pybind11-dev
+
+      - name: Cache CasADi
+        id: cache-casadi
+        uses: actions/cache@v4
+        with:
+          path: ~/casadi-install
+          key: casadi-${{ runner.os }}-${{ hashFiles('install_casadi.sh') }}
+
+      - name: Build and install CasADi
+        if: steps.cache-casadi.outputs.cache-hit != 'true'
+        run: |
+          git clone https://github.com/casadi/casadi.git ~/casadi
+          cd ~/casadi
+          mkdir build && cd build
+
+          ARGS=""
+          # Release build
+          ARGS="$ARGS -DCMAKE_BUILD_TYPE=Release"
+          ARGS="$ARGS -DCMAKE_INSTALL_PREFIX=$CASADI_PREFIX"
+
+          # NLP Solver
+          ARGS="$ARGS -DWITH_IPOPT=ON"
+
+          # MPC-related (FATROP + BLASFEO)
+          ARGS="$ARGS -DWITH_FATROP=ON -DWITH_BUILD_FATROP=ON"
+          ARGS="$ARGS -DWITH_BLASFEO=ON -DWITH_BUILD_BLASFEO=ON"
+          ARGS="$ARGS -DWITH_LAPACK=ON"
+
+          # Disable unnecessary features for faster build
+          ARGS="$ARGS -DWITH_SUNDIALS=OFF"
+          ARGS="$ARGS -DWITH_FMI2=OFF"
+          ARGS="$ARGS -DWITH_FMI3=OFF"
+          ARGS="$ARGS -DWITH_DEEPBIND=OFF"
+          ARGS="$ARGS -DWITH_DEPRECATED_FEATURES=OFF"
+          ARGS="$ARGS -DWITH_EXAMPLES=OFF"
+
+          cmake .. $ARGS
+          make -j$(nproc)
+          make install
+
+      - name: Cache matplotlibcpp17
+        id: cache-matplotlibcpp17
+        uses: actions/cache@v4
+        with:
+          path: ~/matplotlibcpp17-install
+          key: matplotlibcpp17-${{ runner.os }}-v1
+
+      - name: Build and install matplotlibcpp17
+        if: steps.cache-matplotlibcpp17.outputs.cache-hit != 'true'
+        run: |
+          git clone https://github.com/soblin/matplotlibcpp17.git ~/matplotlibcpp17
+          cd ~/matplotlibcpp17
+          mkdir build && cd build
+          cmake .. \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX=$MATPLOTLIBCPP17_PREFIX \
+            -DADD_DEMO=OFF
+          make -j$(nproc)
+          make install
+
+      - name: Build simple_casadi_mpc
+        env:
+          LIBRARY_PATH: ${{ env.CASADI_PREFIX }}/lib
+          LD_LIBRARY_PATH: ${{ env.CASADI_PREFIX }}/lib
+          CPATH: ${{ env.CASADI_PREFIX }}/include
+          CPLUS_INCLUDE_PATH: ${{ env.CASADI_PREFIX }}/include
+        run: |
+          rm -rf build
+          mkdir -p build && cd build
+          cmake .. \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_PREFIX_PATH="$CASADI_PREFIX;$MATPLOTLIBCPP17_PREFIX" \
+            -DBUILD_EXAMPLES=ON \
+            -DBUILD_BENCHMARKS=ON
+          make -j$(nproc)
