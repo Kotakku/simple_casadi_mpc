@@ -9,7 +9,7 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     env:
       CASADI_PREFIX: /home/runner/casadi-install
       MATPLOTLIBCPP17_PREFIX: /home/runner/matplotlibcpp17-install
@@ -89,33 +89,9 @@ jobs:
           make -j$(nproc)
           make install
 
-      - name: Build simple_casadi_mpc with EXAMPLES
+      - name: Build simple_casadi_mpc
         env:
-          LD_LIBRARY_PATH: ${{ env.CASADI_PREFIX }}/lib
-        run: |
-          mkdir -p build && cd build
-          cmake .. \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_PREFIX_PATH="$CASADI_PREFIX;$MATPLOTLIBCPP17_PREFIX" \
-            -DBUILD_EXAMPLES=ON \
-            -DBUILD_BENCHMARKS=OFF
-          make -j$(nproc)
-
-      - name: Build simple_casadi_mpc with BENCHMARKS
-        env:
-          LD_LIBRARY_PATH: ${{ env.CASADI_PREFIX }}/lib
-        run: |
-          rm -rf build
-          mkdir -p build && cd build
-          cmake .. \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_PREFIX_PATH="$CASADI_PREFIX;$MATPLOTLIBCPP17_PREFIX" \
-            -DBUILD_EXAMPLES=OFF \
-            -DBUILD_BENCHMARKS=ON
-          make -j$(nproc)
-
-      - name: Build simple_casadi_mpc with ALL
-        env:
+          LIBRARY_PATH: ${{ env.CASADI_PREFIX }}/lib
           LD_LIBRARY_PATH: ${{ env.CASADI_PREFIX }}/lib
         run: |
           rm -rf build
