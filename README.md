@@ -1,9 +1,12 @@
 # simple_casadi_mpc
 
+[![build](https://github.com/Kotakku/simple_casadi_mpc/actions/workflows/build.yml/badge.svg)](https://github.com/Kotakku/simple_casadi_mpc/actions/workflows/build.yml)
+[![docs](https://github.com/Kotakku/simple_casadi_mpc/actions/workflows/docs.yml/badge.svg)](https://github.com/Kotakku/simple_casadi_mpc/actions/workflows/docs.yml)
+
 Lightweight C++ utilities for building and solving MPC problems with CasADi. Includes runtime MPC, JIT-compiled MPC, and CMake-integrated compiled MPC solvers.
 
 ## Dependencies
-- CasADi ([install script example](https://github.com/Kotakku/OptimLibSetupHub/blob/master/CasADi/install_casadi.sh))
+- CasADi ([install script](install_casadi.sh))
 - IPOPT or FATROP (optional solver backends)
 - Eigen3
 - Python3 + NumPy + pybind11
