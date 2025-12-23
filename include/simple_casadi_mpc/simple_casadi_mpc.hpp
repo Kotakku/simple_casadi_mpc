@@ -538,10 +538,17 @@ protected:
     w_vec.push_back(Xs[N]);
     SymType w = vertcat(w_vec);
 
+    // Build constraints interleaved per stage for FATROP compatibility
+    // Structure: [dynamics_0, path_0, dynamics_1, path_1, ..., dynamics_N-1, path_N-1]
     std::vector<SymType> g_vec;
-    g_vec.push_back(reshape(X(Slice(), Slice(1, N + 1)) - X_next_cal, nx * N, 1));
-    if (!g_k.is_empty()) {
-      g_vec.push_back(reshape(G_path, G_path.size1() * G_path.size2(), 1));
+    SymType X_next_diff = X(Slice(), Slice(1, N + 1)) - X_next_cal;
+    for (casadi_int i = 0; i < N; ++i) {
+      // Dynamics constraint for stage i
+      g_vec.push_back(X_next_diff(Slice(), i));
+      // Path constraints for stage i
+      if (!g_k.is_empty()) {
+        g_vec.push_back(G_path(Slice(), i));
+      }
     }
 
     // Build bounds
@@ -570,11 +577,14 @@ protected:
     ubw_numeric.insert(ubw_numeric.end(), x_bounds[N - 1].second.data(),
                        x_bounds[N - 1].second.data() + nx);
 
-    lbg_numeric.insert(lbg_numeric.end(), nx * N, 0.0);
-    ubg_numeric.insert(ubg_numeric.end(), nx * N, 0.0);
-    equality_.insert(equality_.end(), nx * N, true);
-
+    // Build constraint bounds interleaved per stage (matching g_vec structure)
     for (casadi_int i = 0; i < N; ++i) {
+      // Dynamics constraint bounds for stage i
+      lbg_numeric.insert(lbg_numeric.end(), nx, 0.0);
+      ubg_numeric.insert(ubg_numeric.end(), nx, 0.0);
+      equality_.insert(equality_.end(), nx, true);
+
+      // Path constraint bounds for stage i
       for (auto &con : prob_->equality_constrinats_) {
         auto con_val = con(x_k, u_k);
         lbg_numeric.insert(lbg_numeric.end(), con_val.size1(), 0.0);
