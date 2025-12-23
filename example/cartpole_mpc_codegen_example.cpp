@@ -68,7 +68,7 @@ int main() {
   auto plt = matplotlibcpp17::pyplot::import();
   auto prob = std::make_shared<CartpoleProb>();
   auto lib_config = get_cartpole_solver_compiled_library_options();
-  CompiledMPC mpc(lib_config, prob);
+  CompiledMPC<casadi::MX> mpc(lib_config, prob);
 
   casadi::DMDict param_list;
   double target_pos = -0.5;

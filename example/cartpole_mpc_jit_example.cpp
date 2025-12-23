@@ -11,7 +11,7 @@
 
 using namespace pybind11::literals;
 
-class CartpoleProb : public simple_casadi_mpc::Problem {
+class CartpoleProb : public simple_casadi_mpc::Problem<casadi::MX> {
 public:
   CartpoleProb() : Problem(DynamicsType::ContinuesRK4, 4, 1, 30, 0.05) {
     using namespace casadi;
@@ -47,15 +47,15 @@ public:
     using namespace casadi;
     MX L = 0;
     auto e = x - x_ref;
-    L += 0.5 * mtimes(e.T(), mtimes(Q, e));
-    L += 0.5 * mtimes(u.T(), mtimes(R, u));
+    L += 0.5 * mtimes(e.T(), mtimes(MX(Q), e));
+    L += 0.5 * mtimes(u.T(), mtimes(MX(R), u));
     return dt() * L;
   }
 
-  virtual casadi::MX terminal_cost(casadi::MX x) {
+  virtual casadi::MX terminal_cost(casadi::MX x) override {
     using namespace casadi;
     auto e = x - x_ref;
-    return 0.5 * mtimes(e.T(), mtimes(Qf, e));
+    return 0.5 * mtimes(e.T(), mtimes(MX(Qf), e));
   }
 
   const double mc = 2.0;
@@ -119,16 +119,16 @@ int main() {
 
   // Create both regular MPC and JITMPC
   // Use FATROP for better performance
-  auto fatrop_config = MPC::default_fatrop_config();
+  auto fatrop_config = MPC<casadi::MX>::default_fatrop_config();
   fatrop_config["fatrop.tol"] = 1e-2;
   fatrop_config["fatrop.acceptable_tol"] = 5e-2;
   fatrop_config["print_time"] = false;
 
   std::cout << "\n=== Creating Regular MPC ===" << std::endl;
-  MPC mpc_regular(prob, "fatrop", fatrop_config);
+  MPC<casadi::MX> mpc_regular(prob, "fatrop", fatrop_config);
 
   std::cout << "\n=== Creating JITMPC ===" << std::endl;
-  JITMPC mpc_codegen("cartpole", prob, "fatrop", fatrop_config);
+  JITMPC<casadi::MX> mpc_codegen("cartpole", prob, "fatrop", fatrop_config);
 
   casadi::DMDict param_list;
   double target_pos = -0.5;

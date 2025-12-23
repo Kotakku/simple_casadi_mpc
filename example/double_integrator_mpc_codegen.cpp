@@ -8,7 +8,7 @@ int main() {
   const std::string solver_name = "fatrop";
 
   // solver option
-  auto solver_config = MPC::default_fatrop_config();
+  auto solver_config = MPC<casadi::MX>::default_fatrop_config();
 
   // generated solver name
   const std::string export_solver_name = "double_integrator_solver";
@@ -16,6 +16,6 @@ int main() {
   // output directory
   const std::string export_dir = "./";
 
-  CompiledMPC::generate_code<DoubleIntegratorProb>(export_solver_name, export_dir, solver_name,
-                                                   solver_config);
+  CompiledMPC<casadi::MX>::generate_code<DoubleIntegratorProb>(export_solver_name, export_dir,
+                                                               solver_name, solver_config);
 }

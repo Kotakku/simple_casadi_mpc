@@ -10,7 +10,7 @@
 
 using namespace pybind11::literals;
 
-class InvertedPendulumProb : public simple_casadi_mpc::Problem {
+class InvertedPendulumProb : public simple_casadi_mpc::Problem<casadi::MX> {
 public:
   InvertedPendulumProb() : Problem(DynamicsType::ContinuesRK4, 2, 1, 60, 0.05) {
     using namespace casadi;
@@ -34,16 +34,16 @@ public:
     (void)k;
     using namespace casadi;
     MX L = 0;
-    auto e = x - x_ref;
-    L += 0.5 * mtimes(e.T(), mtimes(Q, e));
-    L += 0.5 * mtimes(u.T(), mtimes(R, u));
+    auto e = x - MX(x_ref);
+    L += 0.5 * mtimes(e.T(), mtimes(MX(Q), e));
+    L += 0.5 * mtimes(u.T(), mtimes(MX(R), u));
     return dt() * L;
   }
 
-  virtual casadi::MX terminal_cost(casadi::MX x) {
+  virtual casadi::MX terminal_cost(casadi::MX x) override {
     using namespace casadi;
-    auto e = x - x_ref;
-    return 0.5 * mtimes(e.T(), mtimes(Qf, e));
+    auto e = x - MX(x_ref);
+    return 0.5 * mtimes(e.T(), mtimes(MX(Qf), e));
   }
 
   const double l = 0.3; // [m]
@@ -86,7 +86,7 @@ int main() {
   pybind11::scoped_interpreter guard{};
   auto plt = matplotlibcpp17::pyplot::import();
   auto prob = std::make_shared<InvertedPendulumProb>();
-  MPC mpc(prob);
+  MPC<casadi::MX> mpc(prob);
 
   Eigen::VectorXd x = Eigen::VectorXd::Zero(prob->nx());
 

@@ -10,7 +10,7 @@
 
 using namespace pybind11::literals;
 
-class DiffDriveProb : public simple_casadi_mpc::Problem {
+class DiffDriveProb : public simple_casadi_mpc::Problem<casadi::MX> {
 public:
   DiffDriveProb() : Problem(DynamicsType::ContinuesRK4, 5, 2, 40, 0.1) {
     using namespace casadi;
@@ -64,7 +64,7 @@ public:
     center(1) = 0.5;
     casadi::MX radius = 0.4;
 
-    return -(mtimes((xy - center).T(), (xy - center)) - radius * radius);
+    return -(mtimes((xy - MX(center)).T(), (xy - MX(center))) - radius * radius);
   }
 
   casadi::MX obstacle2(casadi::MX x, casadi::MX u) {
@@ -76,7 +76,7 @@ public:
     center(1) = -0.5;
     casadi::MX radius = 0.4;
 
-    return -(mtimes((xy - center).T(), (xy - center)) - radius * radius);
+    return -(mtimes((xy - MX(center)).T(), (xy - MX(center))) - radius * radius);
   }
 
   virtual casadi::MX stage_cost(casadi::MX x, casadi::MX u, size_t k) override {
@@ -84,15 +84,15 @@ public:
     using namespace casadi;
     MX L = 0;
     auto e = x - x_ref;
-    L += 0.5 * mtimes(e.T(), mtimes(Q, e));
-    L += 0.5 * mtimes(u.T(), mtimes(R, u));
+    L += 0.5 * mtimes(e.T(), mtimes(MX(Q), e));
+    L += 0.5 * mtimes(u.T(), mtimes(MX(R), u));
     return dt() * L;
   }
 
-  virtual casadi::MX terminal_cost(casadi::MX x) {
+  virtual casadi::MX terminal_cost(casadi::MX x) override {
     using namespace casadi;
     auto e = x - x_ref;
-    return 0.5 * mtimes(e.T(), mtimes(Qf, e));
+    return 0.5 * mtimes(e.T(), mtimes(MX(Qf), e));
   }
 
   casadi::MX x_ref;
@@ -170,7 +170,7 @@ int main() {
   pybind11::scoped_interpreter guard{};
   auto plt = matplotlibcpp17::pyplot::import();
   auto prob = std::make_shared<DiffDriveProb>();
-  MPC mpc(prob);
+  MPC<casadi::MX> mpc(prob);
 
   casadi::DMDict param_list;
   param_list["x_ref"] = {1, -1.0, -M_PI / 2, 0, 0};

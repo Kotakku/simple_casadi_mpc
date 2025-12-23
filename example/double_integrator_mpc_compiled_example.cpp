@@ -12,7 +12,7 @@ int main() {
   auto solver_config = get_double_integrator_solver_compiled_library_options();
   std::cout << "Loading pre-compiled solver from: " << solver_config.shared_library_path
             << std::endl;
-  CompiledMPC mpc(solver_config, prob);
+  CompiledMPC<casadi::MX> mpc(solver_config, prob);
 
   Eigen::VectorXd x = Eigen::VectorXd::Constant(prob->nx(), 1.0);
 

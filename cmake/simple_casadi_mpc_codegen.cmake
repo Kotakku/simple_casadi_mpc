@@ -97,7 +97,10 @@ function(add_simple_casadi_mpc_codegen name codegen_cpp)
   target_include_directories(${name}_compiled_solver
                              PRIVATE ${CODEGEN_DIR} ${extra_include_dirs})
   target_link_libraries(${name}_compiled_solver PRIVATE casadi ${link_libs})
-  target_compile_options(${name}_compiled_solver PRIVATE -fpermissive)
+  # Aggressive optimization for generated solver code
+  target_compile_options(
+    ${name}_compiled_solver PRIVATE -fpermissive -O3 -march=native -ffast-math
+                                    -funroll-loops -DNDEBUG)
   set_target_properties(${name}_compiled_solver
                         PROPERTIES OUTPUT_NAME ${ARG_EXPORT_SOLVER_NAME})
 
@@ -109,13 +112,13 @@ function(add_simple_casadi_mpc_codegen name codegen_cpp)
     GENERATE
     OUTPUT ${compiled_solver_config_header}
     CONTENT
-      "#pragma once\n#include <simple_casadi_mpc/simple_casadi_mpc.hpp>\n\nsimple_casadi_mpc::CompiledMPC::CompiledLibraryConfig get_${ARG_EXPORT_SOLVER_NAME}_compiled_library_options();\n"
+      "#pragma once\n#include <simple_casadi_mpc/simple_casadi_mpc.hpp>\n\nsimple_casadi_mpc::CompiledMPC<casadi::MX>::CompiledLibraryConfig get_${ARG_EXPORT_SOLVER_NAME}_compiled_library_options();\n"
   )
   file(
     GENERATE
     OUTPUT ${compiled_solver_config_source}
     CONTENT
-      "#include \"${ARG_EXPORT_SOLVER_NAME}_config.hpp\"\n\nsimple_casadi_mpc::CompiledMPC::CompiledLibraryConfig get_${ARG_EXPORT_SOLVER_NAME}_compiled_library_options()\n{\n    simple_casadi_mpc::CompiledMPC::CompiledLibraryConfig config;\n    config.export_solver_name = \"${ARG_EXPORT_SOLVER_NAME}\";\n    config.shared_library_path = \"$<TARGET_FILE:${name}_compiled_solver>\";\n    return config;\n}\n"
+      "#include \"${ARG_EXPORT_SOLVER_NAME}_config.hpp\"\n\nsimple_casadi_mpc::CompiledMPC<casadi::MX>::CompiledLibraryConfig get_${ARG_EXPORT_SOLVER_NAME}_compiled_library_options()\n{\n    simple_casadi_mpc::CompiledMPC<casadi::MX>::CompiledLibraryConfig config;\n    config.export_solver_name = \"${ARG_EXPORT_SOLVER_NAME}\";\n    config.shared_library_path = \"$<TARGET_FILE:${name}_compiled_solver>\";\n    return config;\n}\n"
   )
 
   set(${name}_CODEGEN_DIR

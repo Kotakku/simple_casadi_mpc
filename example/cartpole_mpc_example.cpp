@@ -10,7 +10,7 @@
 
 using namespace pybind11::literals;
 
-class CartpoleProb : public simple_casadi_mpc::Problem {
+class CartpoleProb : public simple_casadi_mpc::Problem<casadi::MX> {
 public:
   CartpoleProb() : Problem(DynamicsType::ContinuesRK4, 4, 1, 30, 0.05) {
     using namespace casadi;
@@ -46,15 +46,15 @@ public:
     using namespace casadi;
     MX L = 0;
     auto e = x - x_ref;
-    L += 0.5 * mtimes(e.T(), mtimes(Q, e));
-    L += 0.5 * mtimes(u.T(), mtimes(R, u));
+    L += 0.5 * mtimes(e.T(), mtimes(MX(Q), e));
+    L += 0.5 * mtimes(u.T(), mtimes(MX(R), u));
     return dt() * L;
   }
 
-  virtual casadi::MX terminal_cost(casadi::MX x) {
+  virtual casadi::MX terminal_cost(casadi::MX x) override {
     using namespace casadi;
     auto e = x - x_ref;
-    return 0.5 * mtimes(e.T(), mtimes(Qf, e));
+    return 0.5 * mtimes(e.T(), mtimes(MX(Qf), e));
   }
 
   const double mc = 2.0;
@@ -115,16 +115,16 @@ int main() {
   pybind11::scoped_interpreter guard{};
   auto plt = matplotlibcpp17::pyplot::import();
   auto prob = std::make_shared<CartpoleProb>();
-  MPC mpc(prob);
+  MPC<casadi::MX> mpc(prob);
 
   // MUMPSじゃなくてHSLのMA97とかを使うと速くなる
-  // auto ipopt_dict = MPC::default_ipopt_config();
+  // auto ipopt_dict = MPC<casadi::MX>::default_ipopt_config();
   // ipopt_dict["ipopt.linear_solver"] = "ma27";
-  // MPC mpc(prob, "ipopt", ipopt_dict);
+  // MPC<casadi::MX> mpc(prob, "ipopt", ipopt_dict);
 
   // FATROPを使用する場合
-  // auto fatrop_config = MPC::default_fatrop_config();
-  // MPC mpc(prob, "fatrop", fatrop_config);
+  // auto fatrop_config = MPC<casadi::MX>::default_fatrop_config();
+  // MPC<casadi::MX> mpc(prob, "fatrop", fatrop_config);
 
   casadi::DMDict param_list;
   double target_pos = -0.5;

@@ -2,7 +2,7 @@
 
 #include "simple_casadi_mpc/simple_casadi_mpc.hpp"
 
-class CartpoleProb : public simple_casadi_mpc::Problem {
+class CartpoleProb : public simple_casadi_mpc::Problem<casadi::MX> {
 public:
   CartpoleProb() : Problem(DynamicsType::ContinuesRK4, 4, 1, 30, 0.05) {
     using namespace casadi;
@@ -38,15 +38,15 @@ public:
     using namespace casadi;
     MX L = 0;
     auto e = x - x_ref;
-    L += 0.5 * mtimes(e.T(), mtimes(Q, e));
-    L += 0.5 * mtimes(u.T(), mtimes(R, u));
+    L += 0.5 * mtimes(e.T(), mtimes(MX(Q), e));
+    L += 0.5 * mtimes(u.T(), mtimes(MX(R), u));
     return dt() * L;
   }
 
-  virtual casadi::MX terminal_cost(casadi::MX x) {
+  virtual casadi::MX terminal_cost(casadi::MX x) override {
     using namespace casadi;
     auto e = x - x_ref;
-    return 0.5 * mtimes(e.T(), mtimes(Qf, e));
+    return 0.5 * mtimes(e.T(), mtimes(MX(Qf), e));
   }
 
   const double mc = 2.0;

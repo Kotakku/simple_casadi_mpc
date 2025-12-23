@@ -86,28 +86,28 @@ int main() {
 
   // MPC (IPOPT)
   const auto mpc_result = [&]() {
-    MPC mpc(prob);
+    MPC<casadi::MX> mpc(prob);
     return run_simulation(mpc, prob);
   }();
 
   // MPC (FATROP)
   const auto mpc_fatrop_result = [&]() {
-    auto solver_config = MPC::default_fatrop_config();
-    MPC mpc(prob, "fatrop", solver_config);
+    auto solver_config = MPC<casadi::MX>::default_fatrop_config();
+    MPC<casadi::MX> mpc(prob, "fatrop", solver_config);
     return run_simulation(mpc, prob);
   }();
 
   // JIT MPC (FATROP)
   const auto jit_mpc_result = [&]() {
-    auto solver_config = MPC::default_fatrop_config();
-    JITMPC mpc("cartpole_jit_mpc", prob, "fatrop", solver_config);
+    auto solver_config = MPC<casadi::MX>::default_fatrop_config();
+    JITMPC<casadi::MX> mpc("cartpole_jit_mpc", prob, "fatrop", solver_config);
     return run_simulation(mpc, prob);
   }();
 
   // Compiled MPC (FATROP)
   const auto compiled_mpc_retult = [&]() {
     auto lib_config = get_cartpole_solver_bench_compiled_library_options();
-    CompiledMPC mpc(lib_config, prob);
+    CompiledMPC<casadi::MX> mpc(lib_config, prob);
     return run_simulation(mpc, prob);
   }();
 
