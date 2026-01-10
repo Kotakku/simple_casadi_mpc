@@ -11,7 +11,7 @@ static Eigen::MatrixXd to_eigen(const casadi::DM &cas_mat) {
   Eigen::MatrixXd eig_mat(cas_mat.size1(), cas_mat.size2());
   for (casadi_int i = 0; i < cas_mat.size1(); ++i) {
     for (casadi_int j = 0; j < cas_mat.size2(); ++j) {
-      eig_mat(i, j) = static_cast<Scalar>(cas_mat(i, j));
+      eig_mat(i, j) = static_cast<double>(cas_mat(i, j));
     }
   }
   return eig_mat;
