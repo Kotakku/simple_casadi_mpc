@@ -85,7 +85,6 @@ public:
   virtual SymType dynamics(SymType x, SymType u) = 0;
 
   Eigen::VectorXd dynamics_eval(Eigen::VectorXd x, Eigen::VectorXd u) {
-    // Create Function once and cache it for efficiency
     if (dynamics_func_.is_null()) {
       SymType x_sym = SymTraits<SymType>::sym("x", nx());
       SymType u_sym = SymTraits<SymType>::sym("u", nu());
@@ -93,20 +92,10 @@ public:
       dynamics_func_ = casadi::Function("dynamics_eval", {x_sym, u_sym}, {dx_sym});
     }
 
-    casadi::DM x_dm = casadi::DM::zeros(nx(), 1);
-    casadi::DM u_dm = casadi::DM::zeros(nu(), 1);
-    for (size_t i = 0; i < nx(); i++) {
-      x_dm(i) = x[i];
-    }
-    for (size_t i = 0; i < nu(); i++) {
-      u_dm(i) = u[i];
-    }
-
-    std::vector<casadi::DM> args = {x_dm, u_dm};
-    std::vector<casadi::DM> result = dynamics_func_(args);
-    casadi::DM dx_dm = result[0];
-    Eigen::VectorXd dx = casadi_utils::to_eigen(dx_dm);
-    return dx;
+    casadi::DM x_dm = casadi_utils::to_casadi(x);
+    casadi::DM u_dm = casadi_utils::to_casadi(u);
+    std::vector<casadi::DM> result = dynamics_func_(std::vector<casadi::DM>{x_dm, u_dm});
+    return casadi_utils::to_eigen(result[0]);
   }
 
   Eigen::VectorXd simulate(Eigen::VectorXd x0, Eigen::MatrixXd u) {
@@ -121,17 +110,13 @@ public:
     switch (dyn_type_) {
     case DynamicsType::ContinuesForwardEuler:
       return integrate_dynamics_forward_euler<Eigen::VectorXd>(dt, x0, u, dyn);
-      break;
     case DynamicsType::ContinuesModifiedEuler:
       return integrate_dynamics_modified_euler<Eigen::VectorXd>(dt, x0, u, dyn);
-      break;
     case DynamicsType::ContinuesRK4:
       return integrate_dynamics_rk4<Eigen::VectorXd>(dt, x0, u, dyn);
-      break;
-    case DynamicsType::Discretized:
-      break;
+    default:
+      return x0;
     }
-    return x0;
   }
 
   // 操作量と状態量の上下限
@@ -177,11 +162,11 @@ public:
     }
   }
 
-  void add_constraint(ConstraintType type, std::function<SymType(SymType, SymType)> constrinat) {
+  void add_constraint(ConstraintType type, std::function<SymType(SymType, SymType)> constraint) {
     if (type == ConstraintType::Equality) {
-      equality_constrinats_.push_back(constrinat);
+      equality_constraints_.push_back(constraint);
     } else {
-      inequality_constrinats_.push_back(constrinat);
+      inequality_constraints_.push_back(constraint);
     }
   }
 
@@ -236,8 +221,8 @@ private:
   const double dt_;
 
   using ConstraintFunc = std::function<SymType(SymType, SymType)>;
-  std::vector<ConstraintFunc> equality_constrinats_;
-  std::vector<ConstraintFunc> inequality_constrinats_;
+  std::vector<ConstraintFunc> equality_constraints_;
+  std::vector<ConstraintFunc> inequality_constraints_;
 
   using LUbound = std::pair<Eigen::VectorXd, Eigen::VectorXd>;
   std::vector<LUbound> u_bounds_;
@@ -386,10 +371,8 @@ public:
     lam_x0_ = sol["lam_x"];
     lam_g0_ = sol["lam_g"];
 
-    Eigen::VectorXd opt_u(nu);
-    std::copy(w0_.ptr() + nx, w0_.ptr() + nx + nu, opt_u.data());
-
-    return opt_u;
+    return casadi_utils::to_eigen(
+        w0_(casadi::Slice(static_cast<casadi_int>(nx), static_cast<casadi_int>(nx + nu))));
   }
 
   SymDict casadi_prob() const { return casadi_prob_; }
@@ -405,16 +388,16 @@ protected:
   casadi::Dict config_;
   SymDict casadi_prob_;
   casadi::Function solver_;
-  std::vector<SymType> Xs = {};
-  std::vector<SymType> Us = {};
+  std::vector<SymType> Xs;
+  std::vector<SymType> Us;
 
   casadi::DM lbw_;
   casadi::DM ubw_;
   casadi::DM lbg_;
   casadi::DM ubg_;
-  std::vector<casadi::DM> param_vec_ = {};
+  std::vector<casadi::DM> param_vec_;
 
-  std::vector<bool> equality_ = {};
+  std::vector<bool> equality_;
 
   casadi::DM w0_;
   casadi::DM lam_x0_;
@@ -448,43 +431,34 @@ protected:
 
     // 2. CasADi Functions for one step
     SymType x_next;
-    switch (prob_->dynamics_type()) {
-    case Problem<SymType>::DynamicsType::ContinuesForwardEuler: {
-      std::function<SymType(SymType, SymType)> con_dyn = std::bind(
-          &Problem<SymType>::dynamics, prob_.get(), std::placeholders::_1, std::placeholders::_2);
-      x_next = integrate_dynamics_forward_euler<SymType>(prob_->dt(), x_k, u_k, con_dyn);
-      break;
-    }
-    case Problem<SymType>::DynamicsType::ContinuesModifiedEuler: {
-      std::function<SymType(SymType, SymType)> con_dyn = std::bind(
-          &Problem<SymType>::dynamics, prob_.get(), std::placeholders::_1, std::placeholders::_2);
-      x_next = integrate_dynamics_modified_euler<SymType>(prob_->dt(), x_k, u_k, con_dyn);
-      break;
-    }
-    case Problem<SymType>::DynamicsType::ContinuesRK4: {
-      std::function<SymType(SymType, SymType)> con_dyn = std::bind(
-          &Problem<SymType>::dynamics, prob_.get(), std::placeholders::_1, std::placeholders::_2);
-      x_next = integrate_dynamics_rk4<SymType>(prob_->dt(), x_k, u_k, con_dyn);
-      break;
-    }
-    case Problem<SymType>::DynamicsType::Discretized:
+    if (prob_->dynamics_type() == Problem<SymType>::DynamicsType::Discretized) {
       x_next = prob_->dynamics(x_k, u_k);
-      break;
+    } else {
+      std::function<SymType(SymType, SymType)> con_dyn = std::bind(
+          &Problem<SymType>::dynamics, prob_.get(), std::placeholders::_1, std::placeholders::_2);
+      double dt = prob_->dt();
+      switch (prob_->dynamics_type()) {
+      case Problem<SymType>::DynamicsType::ContinuesForwardEuler:
+        x_next = integrate_dynamics_forward_euler<SymType>(dt, x_k, u_k, con_dyn);
+        break;
+      case Problem<SymType>::DynamicsType::ContinuesModifiedEuler:
+        x_next = integrate_dynamics_modified_euler<SymType>(dt, x_k, u_k, con_dyn);
+        break;
+      case Problem<SymType>::DynamicsType::ContinuesRK4:
+        x_next = integrate_dynamics_rk4<SymType>(dt, x_k, u_k, con_dyn);
+        break;
+      default:
+        break;
+      }
     }
     Function F("F_dynamics", {x_k, u_k}, {x_next});
 
-    // Stage cost function
-    std::vector<SymType> L_inputs = {x_k, u_k};
-    L_inputs.insert(L_inputs.end(), params_sym.begin(), params_sym.end());
-    SymType stage_cost = prob_->stage_cost(x_k, u_k, 0);
-    Function L("L_stage_cost", L_inputs, {stage_cost});
-
     // Constraints
     std::vector<SymType> g_k_vec;
-    for (auto &con : prob_->equality_constrinats_) {
+    for (auto &con : prob_->equality_constraints_) {
       g_k_vec.push_back(con(x_k, u_k));
     }
-    for (auto &con : prob_->inequality_constrinats_) {
+    for (auto &con : prob_->inequality_constraints_) {
       g_k_vec.push_back(con(x_k, u_k));
     }
     SymType g_k = vertcat(g_k_vec);
@@ -585,13 +559,13 @@ protected:
       equality_.insert(equality_.end(), nx, true);
 
       // Path constraint bounds for stage i
-      for (auto &con : prob_->equality_constrinats_) {
+      for (auto &con : prob_->equality_constraints_) {
         auto con_val = con(x_k, u_k);
         lbg_numeric.insert(lbg_numeric.end(), con_val.size1(), 0.0);
         ubg_numeric.insert(ubg_numeric.end(), con_val.size1(), 0.0);
         equality_.insert(equality_.end(), con_val.size1(), true);
       }
-      for (auto &con : prob_->inequality_constrinats_) {
+      for (auto &con : prob_->inequality_constraints_) {
         auto con_val = con(x_k, u_k);
         lbg_numeric.insert(lbg_numeric.end(), con_val.size1(), -inf);
         ubg_numeric.insert(ubg_numeric.end(), con_val.size1(), 0.0);
@@ -625,83 +599,39 @@ template <typename SymType = casadi::MX> class JITMPC : public MPC<SymType> {
 public:
   template <class T>
   JITMPC(const std::string &prob_name, std::shared_ptr<T> prob, std::string solver_name = "ipopt",
-         casadi::Dict config = MPC<SymType>::default_ipopt_config(), const bool verbose = false)
-      : MPC<SymType>(prob, solver_name, config), prob_(prob), prob_name_(prob_name) {
+         casadi::Dict config = MPC<SymType>::default_ipopt_config(), bool verbose = false)
+      : MPC<SymType>(prob, solver_name, config), prob_name_(prob_name) {
     static_assert(std::is_base_of_v<Problem<SymType>, T>, "prob must be based on Problem<SymType>");
 
-    if (verbose)
+    if (verbose) {
       std::cout << "Generating and compiling optimized code..." << std::endl;
-    generate_and_compile_code(prob_name);
-    if (verbose)
+    }
+    build_jit_solver();
+    if (verbose) {
       std::cout << "Code generation completed." << std::endl;
-  }
-
-  Eigen::VectorXd solve(Eigen::VectorXd x0,
-                        casadi::DMDict new_param_list = casadi::DMDict()) override {
-    using namespace casadi;
-
-    for (auto &[param_name, param] : new_param_list) {
-      prob_->param_list_[param_name].dm = param;
     }
-
-    const size_t nx = prob_->nx();
-    const size_t nu = prob_->nu();
-
-    for (size_t l = 0; l < nx; l++) {
-      this->lbw_(l) = x0[l];
-      this->ubw_(l) = x0[l];
-    }
-
-    DMDict arg;
-    arg["x0"] = this->w0_;
-    arg["lbx"] = this->lbw_;
-    arg["ubx"] = this->ubw_;
-    arg["lbg"] = this->lbg_;
-    arg["ubg"] = this->ubg_;
-    arg["lam_x0"] = this->lam_x0_;
-    arg["lam_g0"] = this->lam_g0_;
-    this->param_vec_.clear();
-    this->param_vec_.reserve(prob_->param_list_.size());
-    for (auto &[param_name, param_pair] : prob_->param_list_) {
-      this->param_vec_.push_back(param_pair.dm);
-    }
-    arg["p"] = vertcat(this->param_vec_);
-    DMDict sol = compiled_solver_(arg);
-
-    this->w0_ = sol["x"];
-    this->lam_x0_ = sol["lam_x"];
-    this->lam_g0_ = sol["lam_g"];
-
-    Eigen::VectorXd opt_u(nu);
-    std::copy(this->w0_.ptr() + nx, this->w0_.ptr() + nx + nu, opt_u.data());
-
-    return opt_u;
   }
 
 private:
-  void generate_and_compile_code(const std::string &prob_name) {
-    using namespace casadi;
-
-    Dict jit_options = this->config_;
+  void build_jit_solver() {
+    casadi::Dict jit_options = this->config_;
     jit_options["jit"] = true;
-    jit_options["jit_options"] = Dict{
+    jit_options["jit_options"] = casadi::Dict{
         {"compiler", "ccache gcc"},
         {"flags", "-O3 -march=native"},
         {"verbose", false},
     };
-    jit_options["jit_name"] = "jit_" + prob_name;
+    jit_options["jit_name"] = "jit_" + prob_name_;
     jit_options["jit_temp_suffix"] = false;
 
-    compiled_solver_ =
-        nlpsol("compiled_solver", this->solver_name_, this->casadi_prob_, jit_options);
+    this->solver_ =
+        casadi::nlpsol("compiled_solver", this->solver_name_, this->casadi_prob_, jit_options);
   }
 
-  virtual void build_solver() override {
-    // Do nothing, solver will be built via JIT compilation
+  void build_solver() override {
+    // Do nothing here, solver is built via build_jit_solver() after base class construction
   }
 
-  casadi::Function compiled_solver_;
-  std::shared_ptr<Problem<SymType>> prob_;
   std::string prob_name_;
 };
 
@@ -718,56 +648,9 @@ public:
 
   template <class T>
   CompiledMPC(const CompiledLibraryConfig &lib_config, std::shared_ptr<T> prob)
-      : MPC<SymType>(prob), prob_(prob), lib_config_(lib_config) {
+      : MPC<SymType>(prob), lib_config_(lib_config) {
     static_assert(std::is_base_of_v<Problem<SymType>, T>, "prob must be based on Problem<SymType>");
     load_compiled_solver();
-  }
-
-  Eigen::VectorXd solve(Eigen::VectorXd x0,
-                        casadi::DMDict new_param_list = casadi::DMDict()) override {
-    using namespace casadi;
-
-    for (auto &[param_name, param] : new_param_list) {
-      prob_->param_list_[param_name].dm = param;
-    }
-
-    const size_t nx = prob_->nx();
-    const size_t nu = prob_->nu();
-
-    for (size_t l = 0; l < nx; l++) {
-      this->lbw_(l) = x0[l];
-      this->ubw_(l) = x0[l];
-    }
-
-    DMDict arg;
-    arg["x0"] = this->w0_;
-    arg["lbx"] = this->lbw_;
-    arg["ubx"] = this->ubw_;
-    arg["lbg"] = this->lbg_;
-    arg["ubg"] = this->ubg_;
-    arg["lam_x0"] = this->lam_x0_;
-    arg["lam_g0"] = this->lam_g0_;
-    this->param_vec_.clear();
-    this->param_vec_.reserve(prob_->param_list_.size());
-    for (auto &[param_name, param_pair] : prob_->param_list_) {
-      this->param_vec_.push_back(param_pair.dm);
-    }
-    arg["p"] = vertcat(this->param_vec_);
-    DMDict sol = compiled_solver_(arg);
-
-    this->w0_ = sol["x"];
-    this->lam_x0_ = sol["lam_x"];
-    this->lam_g0_ = sol["lam_g"];
-
-    // Note: Warm start shifting is NOT performed here.
-    // FATROP/IPOPT internally handle warm starting efficiently.
-    // External shifting can interfere with the solver's internal state
-    // and actually slow down convergence.
-
-    Eigen::VectorXd opt_u(nu);
-    std::copy(this->w0_.ptr() + nx, this->w0_.ptr() + nx + nu, opt_u.data());
-
-    return opt_u;
   }
 
   template <class T>
@@ -794,8 +677,9 @@ public:
     casadi::Function solver =
         casadi::nlpsol(export_solver_name, solver_name, mpc.casadi_prob(), solver_cfg);
     casadi::Dict opts = codegen_options;
-    if (opts.find("with_header") == opts.end())
+    if (opts.find("with_header") == opts.end()) {
       opts["with_header"] = true;
+    }
     casadi::CodeGenerator cg(export_solver_name, opts);
     cg.add(solver);
     cg.generate(out_dir.string() + "/");
@@ -804,17 +688,43 @@ public:
 
 private:
   void load_compiled_solver() {
-    compiled_solver_ =
+    this->solver_ =
         casadi::external(lib_config_.export_solver_name, lib_config_.shared_library_path);
   }
 
-  virtual void build_solver() override {
-    // Compiled solver is loaded externally
+  void build_solver() override {
+    // Do nothing here, solver is loaded via load_compiled_solver() after base class construction
   }
 
-  casadi::Function compiled_solver_;
-  std::shared_ptr<Problem<SymType>> prob_;
   CompiledLibraryConfig lib_config_;
 };
+
+// ========================================
+// Free functions for solver configuration
+// ========================================
+
+/**
+ * @brief Get default IPOPT configuration
+ * @tparam SymType casadi::MX (default) or casadi::SX
+ */
+template <typename SymType = casadi::MX> inline casadi::Dict default_ipopt_config() {
+  return MPC<SymType>::default_ipopt_config();
+}
+
+/**
+ * @brief Get default qpOASES configuration
+ * @tparam SymType casadi::MX (default) or casadi::SX
+ */
+template <typename SymType = casadi::MX> inline casadi::Dict default_qpoases_config() {
+  return MPC<SymType>::default_qpoases_config();
+}
+
+/**
+ * @brief Get default FATROP configuration
+ * @tparam SymType casadi::MX (default) or casadi::SX
+ */
+template <typename SymType = casadi::MX> inline casadi::Dict default_fatrop_config() {
+  return MPC<SymType>::default_fatrop_config();
+}
 
 } // namespace simple_casadi_mpc

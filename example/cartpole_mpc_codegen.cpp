@@ -8,7 +8,7 @@ int main() {
   const std::string solver_name = "fatrop";
 
   // solver option
-  auto solver_config = MPC<casadi::MX>::default_fatrop_config();
+  auto solver_config = default_fatrop_config();
   solver_config["fatrop.tol"] = 1e-4;
   solver_config["fatrop.acceptable_tol"] = 5e-4;
 
