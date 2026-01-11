@@ -18,6 +18,6 @@ int main() {
   // output directory
   const std::string export_dir = "./";
 
-  CompiledMPC<casadi::MX>::generate_code<CartpoleProb>(export_solver_name, export_dir, solver_name,
-                                                       solver_config);
+  generate_compiled_mpc_code<CartpoleProb>(export_solver_name, export_dir, solver_name,
+                                           solver_config);
 }

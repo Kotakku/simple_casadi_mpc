@@ -54,6 +54,8 @@ template <> struct SymTraits<casadi::MX> {
  */
 template <typename SymType = casadi::MX> class Problem {
 public:
+  using Sym = SymType;
+
   enum class DynamicsType {
     ContinuesForwardEuler,
     ContinuesModifiedEuler,
@@ -712,5 +714,15 @@ private:
 
   CompiledLibraryConfig lib_config_;
 };
+
+template <class Problem>
+static void generate_compiled_mpc_code(
+    const std::string &export_solver_name, const std::string &export_dir,
+    const std::string &solver_name = "ipopt",
+    const casadi::Dict &solver_config = mpc_config::default_ipopt_config<typename Problem::Sym>(),
+    const casadi::Dict &codegen_options = {}) {
+  CompiledMPC<typename Problem::Sym>::template generate_code<Problem>(
+      export_solver_name, export_dir, solver_name, solver_config, codegen_options);
+}
 
 } // namespace simple_casadi_mpc
