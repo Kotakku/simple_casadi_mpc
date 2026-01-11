@@ -118,12 +118,12 @@ int main() {
   MPC<casadi::MX> mpc(prob);
 
   // MUMPSじゃなくてHSLのMA97とかを使うと速くなる
-  // auto ipopt_dict = MPC<casadi::MX>::default_ipopt_config();
+  // auto ipopt_dict = mpc_config::default_ipopt_config();
   // ipopt_dict["ipopt.linear_solver"] = "ma27";
   // MPC<casadi::MX> mpc(prob, "ipopt", ipopt_dict);
 
   // FATROPを使用する場合
-  // auto fatrop_config = MPC<casadi::MX>::default_fatrop_config();
+  // auto fatrop_config = mpc_config::default_fatrop_config();
   // MPC<casadi::MX> mpc(prob, "fatrop", fatrop_config);
 
   casadi::DMDict param_list;

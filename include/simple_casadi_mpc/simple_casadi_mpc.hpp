@@ -246,6 +246,68 @@ private:
 using MXProblem = Problem<casadi::MX>;
 using SXProblem = Problem<casadi::SX>;
 
+namespace mpc_config {
+/**
+ * @brief Get default IPOPT configuration
+ * @tparam SymType casadi::MX (default) or casadi::SX
+ */
+template <typename SymType = casadi::MX> inline casadi::Dict default_ipopt_config() {
+  casadi::Dict config = {{"calc_lam_p", true},  {"calc_lam_x", true},
+                         {"ipopt.sb", "yes"},   {"ipopt.print_level", 0},
+                         {"print_time", false}, {"ipopt.warm_start_init_point", "yes"}};
+  // For MX, expand is useful; for SX, it's not needed
+  if constexpr (std::is_same_v<SymType, casadi::MX>) {
+    config["expand"] = true;
+  }
+  return config;
+}
+
+/**
+ * @brief Get default qpOASES configuration
+ * @tparam SymType casadi::MX (default) or casadi::SX
+ */
+template <typename SymType = casadi::MX> inline casadi::Dict default_qpoases_config() {
+  casadi::Dict config = {
+      {"calc_lam_p", true},
+      {"calc_lam_x", true},
+      {"max_iter", 100},
+      {"print_header", false},
+      {"print_iteration", false},
+      {"print_status", false},
+      {"print_time", false},
+      {"qpsol", "qpoases"},
+      {"qpsol_options", casadi::Dict{{"enableRegularisation", true}, {"printLevel", "none"}}}};
+  if constexpr (std::is_same_v<SymType, casadi::MX>) {
+    config["expand"] = true;
+  }
+  return config;
+}
+
+/**
+ * @brief Get default FATROP configuration
+ * @tparam SymType casadi::MX (default) or casadi::SX
+ */
+template <typename SymType = casadi::MX> inline casadi::Dict default_fatrop_config() {
+  casadi::Dict config = {
+      {"calc_lam_p", true},
+      {"calc_lam_x", true},
+      {"print_time", false},
+      {"fatrop.print_level", 0},
+      {"fatrop.max_iter", 500},
+      {"fatrop.mu_init", 0.1},
+      {"structure_detection", "auto"},
+      {"fatrop.warm_start_init_point", true},
+      {"fatrop.tol", 1e-6},
+      {"fatrop.acceptable_tol", 5e-3},
+  };
+  if constexpr (std::is_same_v<SymType, casadi::MX>) {
+    config["expand"] = true;
+  }
+  return config;
+}
+
+} // namespace mpc_config
+
 /**
  * @brief MPC solver class (templated for SX/MX)
  * @tparam SymType casadi::SX or casadi::MX
@@ -253,53 +315,6 @@ using SXProblem = Problem<casadi::SX>;
 template <typename SymType = casadi::MX> class MPC {
 public:
   using SymDict = typename SymTraits<SymType>::Dict;
-
-  static casadi::Dict default_ipopt_config() {
-    casadi::Dict config = {{"calc_lam_p", true},  {"calc_lam_x", true},
-                           {"ipopt.sb", "yes"},   {"ipopt.print_level", 0},
-                           {"print_time", false}, {"ipopt.warm_start_init_point", "yes"}};
-    // For MX, expand is useful; for SX, it's not needed
-    if constexpr (std::is_same_v<SymType, casadi::MX>) {
-      config["expand"] = true;
-    }
-    return config;
-  }
-
-  static casadi::Dict default_qpoases_config() {
-    casadi::Dict config = {
-        {"calc_lam_p", true},
-        {"calc_lam_x", true},
-        {"max_iter", 100},
-        {"print_header", false},
-        {"print_iteration", false},
-        {"print_status", false},
-        {"print_time", false},
-        {"qpsol", "qpoases"},
-        {"qpsol_options", casadi::Dict{{"enableRegularisation", true}, {"printLevel", "none"}}}};
-    if constexpr (std::is_same_v<SymType, casadi::MX>) {
-      config["expand"] = true;
-    }
-    return config;
-  }
-
-  static casadi::Dict default_fatrop_config() {
-    casadi::Dict config = {
-        {"calc_lam_p", true},
-        {"calc_lam_x", true},
-        {"print_time", false},
-        {"fatrop.print_level", 0},
-        {"fatrop.max_iter", 500},
-        {"fatrop.mu_init", 0.1},
-        {"structure_detection", "auto"},
-        {"fatrop.warm_start_init_point", true},
-        {"fatrop.tol", 1e-6},
-        {"fatrop.acceptable_tol", 5e-3},
-    };
-    if constexpr (std::is_same_v<SymType, casadi::MX>) {
-      config["expand"] = true;
-    }
-    return config;
-  }
 
   static bool equality_required(const std::string &solver_name, const casadi::Dict &config) {
     if (solver_name == "fatrop") {
@@ -313,7 +328,7 @@ public:
 
   template <class T>
   MPC(std::shared_ptr<T> prob, std::string solver_name = "ipopt",
-      casadi::Dict config = default_ipopt_config())
+      casadi::Dict config = mpc_config::default_ipopt_config<SymType>())
       : prob_(prob), solver_name_(solver_name), config_(config) {
     using namespace casadi;
     static_assert(std::is_base_of_v<Problem<SymType>, T>, "prob must be based on Problem<SymType>");
@@ -599,7 +614,7 @@ template <typename SymType = casadi::MX> class JITMPC : public MPC<SymType> {
 public:
   template <class T>
   JITMPC(const std::string &prob_name, std::shared_ptr<T> prob, std::string solver_name = "ipopt",
-         casadi::Dict config = MPC<SymType>::default_ipopt_config(), bool verbose = false)
+         casadi::Dict config = mpc_config::default_ipopt_config<SymType>(), bool verbose = false)
       : MPC<SymType>(prob, solver_name, config), prob_name_(prob_name) {
     static_assert(std::is_base_of_v<Problem<SymType>, T>, "prob must be based on Problem<SymType>");
 
@@ -654,11 +669,10 @@ public:
   }
 
   template <class T>
-  static void
-  generate_code(const std::string &export_solver_name, const std::string &export_dir,
-                const std::string &solver_name = "ipopt",
-                const casadi::Dict &solver_config = MPC<SymType>::default_ipopt_config(),
-                const casadi::Dict &codegen_options = {}) {
+  static void generate_code(const std::string &export_solver_name, const std::string &export_dir,
+                            const std::string &solver_name = "ipopt",
+                            const casadi::Dict &solver_config = mpc_config::default_ipopt_config(),
+                            const casadi::Dict &codegen_options = {}) {
     static_assert(std::is_base_of_v<Problem<SymType>, T>,
                   "Problem type must inherit from Problem<SymType>");
     namespace fs = std::filesystem;
@@ -698,33 +712,5 @@ private:
 
   CompiledLibraryConfig lib_config_;
 };
-
-// ========================================
-// Free functions for solver configuration
-// ========================================
-
-/**
- * @brief Get default IPOPT configuration
- * @tparam SymType casadi::MX (default) or casadi::SX
- */
-template <typename SymType = casadi::MX> inline casadi::Dict default_ipopt_config() {
-  return MPC<SymType>::default_ipopt_config();
-}
-
-/**
- * @brief Get default qpOASES configuration
- * @tparam SymType casadi::MX (default) or casadi::SX
- */
-template <typename SymType = casadi::MX> inline casadi::Dict default_qpoases_config() {
-  return MPC<SymType>::default_qpoases_config();
-}
-
-/**
- * @brief Get default FATROP configuration
- * @tparam SymType casadi::MX (default) or casadi::SX
- */
-template <typename SymType = casadi::MX> inline casadi::Dict default_fatrop_config() {
-  return MPC<SymType>::default_fatrop_config();
-}
 
 } // namespace simple_casadi_mpc

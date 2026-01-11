@@ -92,14 +92,14 @@ int main() {
 
   // MPC (FATROP)
   const auto mpc_fatrop_result = [&]() {
-    auto solver_config = MPC<casadi::MX>::default_fatrop_config();
+    auto solver_config = mpc_config::default_fatrop_config();
     MPC<casadi::MX> mpc(prob, "fatrop", solver_config);
     return run_simulation(mpc, prob);
   }();
 
   // JIT MPC (FATROP)
   const auto jit_mpc_result = [&]() {
-    auto solver_config = MPC<casadi::MX>::default_fatrop_config();
+    auto solver_config = mpc_config::default_fatrop_config();
     JITMPC<casadi::MX> mpc("cartpole_jit_mpc", prob, "fatrop", solver_config);
     return run_simulation(mpc, prob);
   }();
