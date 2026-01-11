@@ -66,7 +66,25 @@ public:
   enum class ConstraintType { Equality, Inequality };
 
   Problem(DynamicsType dyn_type, size_t _nx, size_t _nu, size_t _horizon, double _dt)
-      : dyn_type_(dyn_type), nx_(_nx), nu_(_nu), horizon_(_horizon), dt_(_dt) {
+      : dyn_type_(dyn_type), nx_(_nx), nu_(_nu), horizon_(_horizon), dt_vec_(_horizon, _dt) {
+    init_bounds();
+  }
+
+  Problem(DynamicsType dyn_type, size_t _nx, size_t _nu, size_t _horizon,
+          std::vector<double> _dt_vec)
+      : dyn_type_(dyn_type), nx_(_nx), nu_(_nu), horizon_(_horizon), dt_vec_(std::move(_dt_vec)) {
+    if (dyn_type == DynamicsType::Discretized) {
+      throw std::invalid_argument("Adaptive time steps not supported for Discretized dynamics");
+    }
+    if (dt_vec_.size() != _horizon) {
+      throw std::invalid_argument("dt_vec size (" + std::to_string(dt_vec_.size()) +
+                                  ") must match horizon (" + std::to_string(_horizon) + ")");
+    }
+    init_bounds();
+  }
+
+private:
+  void init_bounds() {
     double inf = std::numeric_limits<double>::infinity();
 
     Eigen::VectorXd uub = Eigen::VectorXd::Constant(nu(), inf);
@@ -78,6 +96,7 @@ public:
     x_bounds_ = std::vector<LUbound>{horizon(), {xlb, xub}};
   }
 
+public:
   virtual ~Problem() = default;
 
   // ダイナミクス
@@ -190,7 +209,18 @@ public:
   size_t nx() const { return nx_; }
   size_t nu() const { return nu_; }
   size_t horizon() const { return horizon_; }
-  double dt() const { return dt_; }
+  double dt(size_t k = 0) const { return dt_vec_.at(k); }
+  const std::vector<double> &dt_vec() const { return dt_vec_; }
+  bool is_adaptive_dt() const {
+    if (dt_vec_.empty())
+      return false;
+    double first = dt_vec_[0];
+    for (size_t i = 1; i < dt_vec_.size(); ++i) {
+      if (dt_vec_[i] != first)
+        return true;
+    }
+    return false;
+  }
 
   SymType parameter(std::string name, size_t rows, size_t cols) {
     auto param = SymTraits<SymType>::sym(name, rows, cols);
@@ -220,7 +250,7 @@ private:
   const size_t nx_;
   const size_t nu_;
   const size_t horizon_;
-  const double dt_;
+  std::vector<double> dt_vec_;
 
   using ConstraintFunc = std::function<SymType(SymType, SymType)>;
   std::vector<ConstraintFunc> equality_constraints_;
@@ -446,30 +476,6 @@ protected:
     for (auto &[param_name, param_pair] : prob_->param_list_)
       params_sym.push_back(param_pair.sym);
 
-    // 2. CasADi Functions for one step
-    SymType x_next;
-    if (prob_->dynamics_type() == Problem<SymType>::DynamicsType::Discretized) {
-      x_next = prob_->dynamics(x_k, u_k);
-    } else {
-      std::function<SymType(SymType, SymType)> con_dyn = std::bind(
-          &Problem<SymType>::dynamics, prob_.get(), std::placeholders::_1, std::placeholders::_2);
-      double dt = prob_->dt();
-      switch (prob_->dynamics_type()) {
-      case Problem<SymType>::DynamicsType::ContinuesForwardEuler:
-        x_next = integrate_dynamics_forward_euler<SymType>(dt, x_k, u_k, con_dyn);
-        break;
-      case Problem<SymType>::DynamicsType::ContinuesModifiedEuler:
-        x_next = integrate_dynamics_modified_euler<SymType>(dt, x_k, u_k, con_dyn);
-        break;
-      case Problem<SymType>::DynamicsType::ContinuesRK4:
-        x_next = integrate_dynamics_rk4<SymType>(dt, x_k, u_k, con_dyn);
-        break;
-      default:
-        break;
-      }
-    }
-    Function F("F_dynamics", {x_k, u_k}, {x_next});
-
     // Constraints
     std::vector<SymType> g_k_vec;
     for (auto &con : prob_->equality_constraints_) {
@@ -484,12 +490,72 @@ protected:
     G_inputs.insert(G_inputs.end(), params_sym.begin(), params_sym.end());
     Function G_constraints("G_constraints", G_inputs, {g_k});
 
-    // 3. Map application
+    // 2. Build dynamics constraints
     // For SX: use "serial" to avoid code explosion
     // For MX: use default (parallel) as MX handles it well
     std::string map_mode = "serial";
 
-    SymType X_next_cal = F.map(N, map_mode)(std::vector<SymType>{X(Slice(), Slice(0, N)), U})[0];
+    std::vector<SymType> X_next_list;
+    X_next_list.reserve(N);
+
+    if (prob_->dynamics_type() == Problem<SymType>::DynamicsType::Discretized) {
+      // Discretized: use F.map (no dt involved)
+      SymType x_next = prob_->dynamics(x_k, u_k);
+      Function F("F_dynamics", {x_k, u_k}, {x_next});
+      SymType X_next_cal = F.map(N, map_mode)(std::vector<SymType>{X(Slice(), Slice(0, N)), U})[0];
+      for (casadi_int i = 0; i < N; ++i) {
+        X_next_list.push_back(X_next_cal(Slice(), i));
+      }
+    } else {
+      std::function<SymType(SymType, SymType)> con_dyn = std::bind(
+          &Problem<SymType>::dynamics, prob_.get(), std::placeholders::_1, std::placeholders::_2);
+      const auto &dt_vec = prob_->dt_vec();
+
+      if (!prob_->is_adaptive_dt()) {
+        // Uniform dt - use efficient F.map(N)
+        double dt = dt_vec[0];
+        SymType x_next;
+        switch (prob_->dynamics_type()) {
+        case Problem<SymType>::DynamicsType::ContinuesForwardEuler:
+          x_next = integrate_dynamics_forward_euler<SymType>(dt, x_k, u_k, con_dyn);
+          break;
+        case Problem<SymType>::DynamicsType::ContinuesModifiedEuler:
+          x_next = integrate_dynamics_modified_euler<SymType>(dt, x_k, u_k, con_dyn);
+          break;
+        case Problem<SymType>::DynamicsType::ContinuesRK4:
+          x_next = integrate_dynamics_rk4<SymType>(dt, x_k, u_k, con_dyn);
+          break;
+        default:
+          break;
+        }
+        Function F("F_dynamics", {x_k, u_k}, {x_next});
+        SymType X_next_cal =
+            F.map(N, map_mode)(std::vector<SymType>{X(Slice(), Slice(0, N)), U})[0];
+        for (casadi_int i = 0; i < N; ++i) {
+          X_next_list.push_back(X_next_cal(Slice(), i));
+        }
+      } else {
+        // Adaptive dt - unroll loop, create per-step dynamics
+        for (casadi_int i = 0; i < N; ++i) {
+          double dt_i = dt_vec[i];
+          SymType x_next_i;
+          switch (prob_->dynamics_type()) {
+          case Problem<SymType>::DynamicsType::ContinuesForwardEuler:
+            x_next_i = integrate_dynamics_forward_euler<SymType>(dt_i, Xs[i], Us[i], con_dyn);
+            break;
+          case Problem<SymType>::DynamicsType::ContinuesModifiedEuler:
+            x_next_i = integrate_dynamics_modified_euler<SymType>(dt_i, Xs[i], Us[i], con_dyn);
+            break;
+          case Problem<SymType>::DynamicsType::ContinuesRK4:
+            x_next_i = integrate_dynamics_rk4<SymType>(dt_i, Xs[i], Us[i], con_dyn);
+            break;
+          default:
+            break;
+          }
+          X_next_list.push_back(x_next_i);
+        }
+      }
+    }
 
     // Calculate stage costs individually for each horizon step
     std::vector<SymType> stage_costs;
@@ -532,10 +598,9 @@ protected:
     // Build constraints interleaved per stage for FATROP compatibility
     // Structure: [dynamics_0, path_0, dynamics_1, path_1, ..., dynamics_N-1, path_N-1]
     std::vector<SymType> g_vec;
-    SymType X_next_diff = X(Slice(), Slice(1, N + 1)) - X_next_cal;
     for (casadi_int i = 0; i < N; ++i) {
-      // Dynamics constraint for stage i
-      g_vec.push_back(X_next_diff(Slice(), i));
+      // Dynamics constraint for stage i: X[i+1] - F(X[i], U[i]) = 0
+      g_vec.push_back(Xs[i + 1] - X_next_list[i]);
       // Path constraints for stage i
       if (!g_k.is_empty()) {
         g_vec.push_back(G_path(Slice(), i));
