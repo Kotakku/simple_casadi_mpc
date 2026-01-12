@@ -70,15 +70,14 @@ public:
     init_bounds();
   }
 
-  Problem(DynamicsType dyn_type, size_t _nx, size_t _nu, size_t _horizon,
-          std::vector<double> _dt_vec)
-      : dyn_type_(dyn_type), nx_(_nx), nu_(_nu), horizon_(_horizon), dt_vec_(std::move(_dt_vec)) {
+  Problem(DynamicsType dyn_type, size_t _nx, size_t _nu, std::vector<double> _dt_vec)
+      : dyn_type_(dyn_type), nx_(_nx), nu_(_nu), horizon_(_dt_vec.size()),
+        dt_vec_(std::move(_dt_vec)) {
     if (dyn_type == DynamicsType::Discretized) {
       throw std::invalid_argument("Adaptive time steps not supported for Discretized dynamics");
     }
-    if (dt_vec_.size() != _horizon) {
-      throw std::invalid_argument("dt_vec size (" + std::to_string(dt_vec_.size()) +
-                                  ") must match horizon (" + std::to_string(_horizon) + ")");
+    if (dt_vec_.empty()) {
+      throw std::invalid_argument("dt_vec must not be empty");
     }
     init_bounds();
   }
@@ -705,6 +704,7 @@ private:
     };
     jit_options["jit_name"] = "jit_" + prob_name_;
     jit_options["jit_temp_suffix"] = false;
+    jit_options["jit_cleanup"] = false;
 
     this->solver_ =
         casadi::nlpsol("compiled_solver", this->solver_name_, this->casadi_prob_, jit_options);
@@ -736,14 +736,13 @@ public:
   }
 
   template <class T>
-  static void generate_code(const std::string &export_solver_name, const std::string &export_dir,
-                            const std::string &solver_name = "ipopt",
+  static void generate_code(std::shared_ptr<T> prob, const std::string &export_solver_name,
+                            const std::string &export_dir, const std::string &solver_name = "ipopt",
                             const casadi::Dict &solver_config = mpc_config::default_ipopt_config(),
                             const casadi::Dict &codegen_options = {}) {
     static_assert(std::is_base_of_v<Problem<SymType>, T>,
                   "Problem type must inherit from Problem<SymType>");
     namespace fs = std::filesystem;
-    auto prob = std::make_shared<T>();
     MPC<SymType> mpc(prob, solver_name, solver_config);
 
     fs::path out_dir = fs::path(export_dir);
@@ -782,12 +781,12 @@ private:
 
 template <class Problem>
 static void generate_compiled_mpc_code(
-    const std::string &export_solver_name, const std::string &export_dir,
-    const std::string &solver_name = "ipopt",
+    std::shared_ptr<Problem> prob, const std::string &export_solver_name,
+    const std::string &export_dir, const std::string &solver_name = "ipopt",
     const casadi::Dict &solver_config = mpc_config::default_ipopt_config<typename Problem::Sym>(),
     const casadi::Dict &codegen_options = {}) {
   CompiledMPC<typename Problem::Sym>::template generate_code<Problem>(
-      export_solver_name, export_dir, solver_name, solver_config, codegen_options);
+      prob, export_solver_name, export_dir, solver_name, solver_config, codegen_options);
 }
 
 } // namespace simple_casadi_mpc

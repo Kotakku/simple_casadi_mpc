@@ -4,6 +4,8 @@
 int main() {
   using namespace simple_casadi_mpc;
 
+  auto prob = std::make_shared<CartpoleProb>();
+
   // solver name
   const std::string solver_name = "fatrop";
 
@@ -16,6 +18,5 @@ int main() {
   // output directory
   const std::string export_dir = "./";
 
-  generate_compiled_mpc_code<CartpoleProb>(export_solver_name, export_dir, solver_name,
-                                           solver_config);
+  generate_compiled_mpc_code(prob, export_solver_name, export_dir, solver_name, solver_config);
 }
