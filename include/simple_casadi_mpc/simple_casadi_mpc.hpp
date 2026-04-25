@@ -250,17 +250,11 @@ public:
 
   static casadi::Dict default_fatrop_config() {
     casadi::Dict config = {
-        {"calc_lam_p", true},
-        {"calc_lam_x", true},
-        {"expand", true},
-        {"print_time", false},
-        {"fatrop.print_level", 0},
-        {"fatrop.max_iter", 500},
-        {"fatrop.mu_init", 0.1},
-        {"structure_detection", "auto"},
-        {"fatrop.warm_start_init_point", true},
-        {"fatrop.tol", 1e-6},
-        {"fatrop.acceptable_tol", 5e-3},
+        {"calc_lam_p", true},      {"calc_lam_x", true},
+        {"expand", true},          {"print_time", false},
+        {"fatrop.print_level", 0}, {"fatrop.max_iter", 500},
+        {"fatrop.mu_init", 0.1},   {"structure_detection", "auto"},
+        {"fatrop.tol", 1e-6},      {"fatrop.tol_acceptable", 5e-3},
         // {"debug", true},
     };
     return config;

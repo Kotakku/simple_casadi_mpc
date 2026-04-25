@@ -121,7 +121,7 @@ int main() {
   // Use FATROP for better performance
   auto fatrop_config = MPC::default_fatrop_config();
   fatrop_config["fatrop.tol"] = 1e-2;
-  fatrop_config["fatrop.acceptable_tol"] = 5e-2;
+  fatrop_config["fatrop.tol_acceptable"] = 5e-2;
   fatrop_config["print_time"] = false;
 
   std::cout << "\n=== Creating Regular MPC ===" << std::endl;
