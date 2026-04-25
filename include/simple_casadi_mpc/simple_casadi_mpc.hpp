@@ -5,6 +5,7 @@
 #include <filesystem>
 #include <map>
 #include <memory>
+#include <numeric>
 #include <vector>
 
 namespace simple_casadi_mpc {
@@ -153,6 +154,17 @@ public:
     }
   }
 
+  // Soft constraint: introduces non-negative slack variables s >= 0 and adds
+  //   penalty = w1 * 1^T s + 0.5 * w2 * s^T s
+  // to the cost. For inequality g(x,u) <= 0 the constraint becomes g - s <= 0.
+  // For equality h(x,u) = 0 it becomes |h| <= s, i.e. (h - s <= 0) and (-h - s <= 0).
+  // Pure L1 (exact) penalty is the default; set w2 > 0 to add an L2 (smooth) term.
+  void soft_add_constraint(ConstraintType type,
+                           std::function<casadi::MX(casadi::MX, casadi::MX)> constraint,
+                           double w1 = 1e3, double w2 = 0.0) {
+    soft_constraints_.push_back({type, constraint, w1, w2});
+  }
+
   // k番目のステージコスト
   virtual casadi::MX stage_cost(casadi::MX x, casadi::MX u, size_t k) {
     (void)x;
@@ -207,6 +219,14 @@ private:
   using ConstraintFunc = std::function<casadi::MX(casadi::MX, casadi::MX)>;
   std::vector<ConstraintFunc> equality_constrinats_;
   std::vector<ConstraintFunc> inequality_constrinats_;
+
+  struct SoftConstraint {
+    ConstraintType type;
+    ConstraintFunc func;
+    double w1;
+    double w2;
+  };
+  std::vector<SoftConstraint> soft_constraints_;
 
   using LUbound = std::pair<Eigen::VectorXd, Eigen::VectorXd>;
   std::vector<LUbound> u_bounds_;
@@ -432,9 +452,50 @@ protected:
     for (auto &con : prob_->inequality_constrinats_) {
       g_k_vec.push_back(con(x_k, u_k));
     }
+
+    // ソフト制約用のスラック変数を per-stage に確保し、対応する不等式を g_k に追加する。
+    // - 不等式 g(x,u) <= 0 -> g - s <= 0
+    // - 等式  h(x,u)  = 0 -> h - s <= 0 かつ -h - s <= 0  (|h| <= s)
+    // s >= 0 は w 側の bound で強制し、ペナルティ w1*1^T s + 0.5*w2*s^T s をコストに加算する。
+    std::vector<casadi_int> soft_sizes;
+    soft_sizes.reserve(prob_->soft_constraints_.size());
+    for (auto &sc : prob_->soft_constraints_) {
+      soft_sizes.push_back(sc.func(x_k, u_k).size1());
+    }
+    const casadi_int n_s_total =
+        std::accumulate(soft_sizes.begin(), soft_sizes.end(), static_cast<casadi_int>(0));
+
+    std::vector<MX> Ss;
+    MX s_k;
+    if (n_s_total > 0) {
+      s_k = MX::sym("s_k", n_s_total, 1);
+      Ss.reserve(N);
+      for (casadi_int i = 0; i < N; ++i) {
+        Ss.push_back(MX::sym("S_" + std::to_string(i), n_s_total, 1));
+      }
+
+      casadi_int s_offset = 0;
+      for (size_t i = 0; i < prob_->soft_constraints_.size(); ++i) {
+        auto &sc = prob_->soft_constraints_[i];
+        const casadi_int m = soft_sizes[i];
+        MX s_part = s_k(Slice(s_offset, s_offset + m));
+        MX c_val = sc.func(x_k, u_k);
+        if (sc.type == Problem::ConstraintType::Inequality) {
+          g_k_vec.push_back(c_val - s_part);
+        } else {
+          g_k_vec.push_back(c_val - s_part);
+          g_k_vec.push_back(-c_val - s_part);
+        }
+        s_offset += m;
+      }
+    }
+
     MX g_k = vertcat(g_k_vec);
 
     std::vector<MX> G_inputs = {x_k, u_k};
+    if (n_s_total > 0) {
+      G_inputs.push_back(s_k);
+    }
     G_inputs.insert(G_inputs.end(), params_mx.begin(), params_mx.end());
     Function G_constraints("G_constraints", G_inputs, {g_k});
 
@@ -460,12 +521,34 @@ protected:
 
     // Terminal cost
     MX terminal_val = prob_->terminal_cost(Xs[N]);
-    MX J = J_stage + terminal_val;
+
+    // ソフト制約のスラック変数に対するペナルティコスト
+    MX penalty_cost = 0;
+    if (n_s_total > 0) {
+      for (casadi_int k = 0; k < N; ++k) {
+        casadi_int off = 0;
+        for (size_t i = 0; i < prob_->soft_constraints_.size(); ++i) {
+          auto &sc = prob_->soft_constraints_[i];
+          const casadi_int m = soft_sizes[i];
+          MX sk_part = Ss[k](Slice(off, off + m));
+          penalty_cost = penalty_cost + sc.w1 * sum1(sk_part);
+          if (sc.w2 != 0.0) {
+            penalty_cost = penalty_cost + 0.5 * sc.w2 * dot(sk_part, sk_part);
+          }
+          off += m;
+        }
+      }
+    }
+
+    MX J = J_stage + terminal_val + penalty_cost;
 
     // Path constraints
     MX G_path;
     if (!g_k.is_empty()) {
       std::vector<MX> G_map_inputs = {X(Slice(), Slice(0, N)), U};
+      if (n_s_total > 0) {
+        G_map_inputs.push_back(horzcat(Ss));
+      }
       for (auto &param : params_mx) {
         G_map_inputs.push_back(repmat(param, 1, N));
       }
@@ -474,10 +557,13 @@ protected:
 
     // 4. NLP construction
     std::vector<MX> w_vec;
-    w_vec.reserve(2 * N + 1);
+    w_vec.reserve((n_s_total > 0 ? 3 : 2) * N + 1);
     for (casadi_int i = 0; i < N; ++i) {
       w_vec.push_back(Xs[i]);
       w_vec.push_back(Us[i]);
+      if (n_s_total > 0) {
+        w_vec.push_back(Ss[i]);
+      }
     }
     w_vec.push_back(Xs[N]);
     MX w = vertcat(w_vec);
@@ -509,6 +595,10 @@ protected:
                          u_bounds[i].first.data() + nu);
       ubw_numeric.insert(ubw_numeric.end(), u_bounds[i].second.data(),
                          u_bounds[i].second.data() + nu);
+      if (n_s_total > 0) {
+        lbw_numeric.insert(lbw_numeric.end(), n_s_total, 0.0);
+        ubw_numeric.insert(ubw_numeric.end(), n_s_total, inf);
+      }
     }
     // Bounds for x_N
     lbw_numeric.insert(lbw_numeric.end(), x_bounds[N - 1].first.data(),
@@ -537,6 +627,15 @@ protected:
         ubg_numeric.insert(ubg_numeric.end(), con_val.size1(), 0.0);
 
         equality_.insert(equality_.end(), con_val.size1(), false);
+      }
+      // ソフト制約の path 制約 (どちらも片側不等式 [-inf, 0])
+      for (size_t s_i = 0; s_i < prob_->soft_constraints_.size(); ++s_i) {
+        const casadi_int m = soft_sizes[s_i];
+        const casadi_int rows =
+            (prob_->soft_constraints_[s_i].type == Problem::ConstraintType::Inequality) ? m : 2 * m;
+        lbg_numeric.insert(lbg_numeric.end(), rows, -inf);
+        ubg_numeric.insert(ubg_numeric.end(), rows, 0.0);
+        equality_.insert(equality_.end(), rows, false);
       }
     }
 

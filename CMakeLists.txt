@@ -97,6 +97,13 @@ if(BUILD_EXAMPLES)
     PRIVATE casadi Eigen3::Eigen ${PROJECT_NAME} pybind11::embed
             matplotlibcpp17::matplotlibcpp17)
 
+  add_executable(diff_drive_soft_constraint_example
+                 example/diff_drive_soft_constraint_example.cpp)
+  target_link_libraries(
+    diff_drive_soft_constraint_example
+    PRIVATE casadi Eigen3::Eigen ${PROJECT_NAME} pybind11::embed
+            matplotlibcpp17::matplotlibcpp17)
+
   add_executable(cartpole_mpc_jit_example example/cartpole_mpc_jit_example.cpp)
   target_link_libraries(
     cartpole_mpc_jit_example
