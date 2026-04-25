@@ -260,7 +260,7 @@ public:
         {"structure_detection", "auto"},
         {"fatrop.warm_start_init_point", true},
         {"fatrop.tol", 1e-6},
-        {"fatrop.acceptable_tol", 5e-3},
+        {"fatrop.tol_acceptable", 5e-3},
         // {"debug", true},
     };
     return config;
