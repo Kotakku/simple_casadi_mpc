@@ -8,6 +8,8 @@ var annotated_dup =
     ] ],
     [ "CartpoleProb", "classCartpoleProb.html", null ],
     [ "DiffDriveProb", "classDiffDriveProb.html", null ],
+    [ "DiffDriveSoftProb", "classDiffDriveSoftProb.html", null ],
     [ "DoubleIntegratorProb", "classDoubleIntegratorProb.html", null ],
-    [ "InvertedPendulumProb", "classInvertedPendulumProb.html", null ]
+    [ "InvertedPendulumProb", "classInvertedPendulumProb.html", null ],
+    [ "Trajectory", "structTrajectory.html", null ]
 ];

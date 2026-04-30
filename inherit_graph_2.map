@@ -1,11 +1,13 @@
 <map id="Graphical Class Hierarchy" name="Graphical Class Hierarchy">
-<area shape="rect" id="Node000000" href="$classsimple__casadi__mpc_1_1Problem.html" title=" " alt="" coords="5,73,164,113"/>
+<area shape="rect" id="Node000000" href="$classsimple__casadi__mpc_1_1Problem.html" title=" " alt="" coords="5,97,164,137"/>
 <area shape="rect" id="Node000001" href="$classCartpoleProb.html" title=" " alt="" coords="244,5,351,31"/>
-<area shape="poly" id="edge3_Node000000_Node000001" title=" " alt="" coords="144,65,211,39,247,28,249,33,213,45,146,70"/>
+<area shape="poly" id="edge3_Node000000_Node000001" title=" " alt="" coords="125,87,165,62,211,40,243,28,245,33,213,44,168,67,127,92"/>
 <area shape="rect" id="Node000002" href="$classDiffDriveProb.html" title=" " alt="" coords="243,55,352,80"/>
-<area shape="poly" id="edge4_Node000000_Node000002" title=" " alt="" coords="178,79,242,71,243,76,178,84"/>
-<area shape="rect" id="Node000003" href="$classDoubleIntegratorProb.html" title=" " alt="" coords="217,104,378,129"/>
-<area shape="poly" id="edge5_Node000000_Node000003" title=" " alt="" coords="178,100,217,105,216,110,177,106"/>
-<area shape="rect" id="Node000004" href="$classInvertedPendulumProb.html" title=" " alt="" coords="212,153,383,179"/>
-<area shape="poly" id="edge6_Node000000_Node000004" title=" " alt="" coords="150,115,213,138,253,151,251,156,211,143,148,120"/>
+<area shape="poly" id="edge4_Node000000_Node000002" title=" " alt="" coords="177,93,242,77,243,82,178,98"/>
+<area shape="rect" id="Node000003" href="$classDiffDriveSoftProb.html" title=" " alt="" coords="230,104,365,129"/>
+<area shape="poly" id="edge5_Node000000_Node000003" title=" " alt="" coords="178,114,230,114,230,119,178,119"/>
+<area shape="rect" id="Node000004" href="$classDoubleIntegratorProb.html" title=" " alt="" coords="217,153,378,179"/>
+<area shape="poly" id="edge6_Node000000_Node000004" title=" " alt="" coords="178,136,243,151,241,156,177,141"/>
+<area shape="rect" id="Node000005" href="$classInvertedPendulumProb.html" title=" " alt="" coords="212,203,383,228"/>
+<area shape="poly" id="edge7_Node000000_Node000005" title=" " alt="" coords="129,142,169,166,213,188,248,200,246,205,211,192,167,170,126,147"/>
 </map>

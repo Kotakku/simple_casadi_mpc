@@ -10,7 +10,9 @@ var hierarchy =
       [ "CartpoleProb", "classCartpoleProb.html", null ],
       [ "CartpoleProb", "classCartpoleProb.html", null ],
       [ "DiffDriveProb", "classDiffDriveProb.html", null ],
+      [ "DiffDriveSoftProb", "classDiffDriveSoftProb.html", null ],
       [ "DoubleIntegratorProb", "classDoubleIntegratorProb.html", null ],
       [ "InvertedPendulumProb", "classInvertedPendulumProb.html", null ]
-    ] ]
+    ] ],
+    [ "Trajectory", "structTrajectory.html", null ]
 ];

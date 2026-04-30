@@ -35,10 +35,12 @@ var NAVTREE =
       [ "double_integrator_mpc_example", "index.html#autotoc_md7", null ],
       [ "cartpole_mpc_example", "index.html#autotoc_md8", null ],
       [ "inverted_pendulum_mpc_example", "index.html#autotoc_md9", null ],
-      [ "diff_drive_mpc_example", "index.html#autotoc_md10", null ]
+      [ "diff_drive_mpc_example", "index.html#autotoc_md10", null ],
+      [ "diff_drive_soft_constraint_example", "index.html#autotoc_md11", null ]
     ] ],
-    [ "Benchmarks", "index.html#autotoc_md11", null ],
-    [ "Documentation", "index.html#autotoc_md12", null ],
+    [ "Soft constraints", "index.html#autotoc_md12", null ],
+    [ "Benchmarks", "index.html#autotoc_md13", null ],
+    [ "Documentation", "index.html#autotoc_md14", null ],
     [ "Classes", "annotated.html", [
       [ "Class List", "annotated.html", "annotated_dup" ],
       [ "Class Index", "classes.html", null ],

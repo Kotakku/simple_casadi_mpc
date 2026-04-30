@@ -117,17 +117,19 @@ Inheritance diagram for simple_casadi_mpc::Problem:</div>
 <div class="dyncontent">
 <div class="center"><img src="classsimple__casadi__mpc_1_1Problem__inherit__graph.png" border="0" usemap="#asimple__casadi__mpc_1_1Problem_inherit__map" alt="Inheritance graph"/></div>
 <map name="asimple__casadi__mpc_1_1Problem_inherit__map" id="asimple__casadi__mpc_1_1Problem_inherit__map">
-<area shape="rect" title=" " alt="" coords="45,5,203,45"/>
-<area shape="rect" href="classCartpoleProb.html" title=" " alt="" coords="5,93,112,119"/>
-<area shape="poly" title=" " alt="" coords="85,57,57,95,53,91,81,54"/>
-<area shape="poly" title=" " alt="" coords="102,58,71,95,66,91,97,54"/>
-<area shape="poly" title=" " alt="" coords="118,58,84,95,80,91,115,55"/>
-<area shape="rect" href="classDiffDriveProb.html" title=" " alt="" coords="136,93,245,119"/>
-<area shape="poly" title=" " alt="" coords="151,54,183,91,179,95,147,58"/>
-<area shape="rect" href="classDoubleIntegratorProb.html" title=" " alt="" coords="270,93,431,119"/>
-<area shape="poly" title=" " alt="" coords="192,47,318,91,316,96,191,52"/>
-<area shape="rect" href="classInvertedPendulumProb.html" title=" " alt="" coords="456,93,627,119"/>
-<area shape="poly" title=" " alt="" coords="218,41,481,91,480,96,217,47"/>
+<area shape="rect" title=" " alt="" coords="5,47,164,87"/>
+<area shape="rect" href="classCartpoleProb.html" title=" " alt="" coords="244,5,351,31"/>
+<area shape="poly" title=" " alt="" coords="177,61,236,46,281,28,283,33,238,51,178,66"/>
+<area shape="poly" title=" " alt="" coords="177,43,243,28,244,33,178,48"/>
+<area shape="poly" title=" " alt="" coords="128,40,185,23,243,12,244,17,186,29,130,45"/>
+<area shape="rect" href="classDiffDriveProb.html" title=" " alt="" coords="243,55,352,80"/>
+<area shape="poly" title=" " alt="" coords="178,65,243,65,243,70,178,70"/>
+<area shape="rect" href="classDiffDriveSoftProb.html" title=" " alt="" coords="230,104,365,129"/>
+<area shape="poly" title=" " alt="" coords="178,86,243,101,241,107,177,91"/>
+<area shape="rect" href="classDoubleIntegratorProb.html" title=" " alt="" coords="217,153,378,179"/>
+<area shape="poly" title=" " alt="" coords="129,93,169,116,213,138,248,151,246,156,211,143,167,121,126,97"/>
+<area shape="rect" href="classInvertedPendulumProb.html" title=" " alt="" coords="212,203,383,228"/>
+<area shape="poly" title=" " alt="" coords="112,96,156,144,184,167,213,188,241,200,239,205,211,192,180,171,153,147,108,100"/>
 </map>
 <center><span class="legend">[<a target="top" href="graph_legend.html">legend</a>]</span></center></div>
 <table class="memberdecls">
@@ -182,6 +184,9 @@ void&#160;</td><td class="memItemRight" valign="bottom"><b>set_state_upper_bound
 <tr class="memitem:a48bd6a0c0fb320ccce5feec458fd25c5" id="r_a48bd6a0c0fb320ccce5feec458fd25c5"><td class="memItemLeft" align="right" valign="top"><a id="a48bd6a0c0fb320ccce5feec458fd25c5" name="a48bd6a0c0fb320ccce5feec458fd25c5"></a>
 void&#160;</td><td class="memItemRight" valign="bottom"><b>add_constraint</b> (ConstraintType type, std::function&lt; casadi::MX(casadi::MX, casadi::MX)&gt; constrinat)</td></tr>
 <tr class="separator:a48bd6a0c0fb320ccce5feec458fd25c5"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a1a6e6e32b923b1e597ad92013fc17e91" id="r_a1a6e6e32b923b1e597ad92013fc17e91"><td class="memItemLeft" align="right" valign="top"><a id="a1a6e6e32b923b1e597ad92013fc17e91" name="a1a6e6e32b923b1e597ad92013fc17e91"></a>
+void&#160;</td><td class="memItemRight" valign="bottom"><b>soft_add_constraint</b> (ConstraintType type, std::function&lt; casadi::MX(casadi::MX, casadi::MX)&gt; constraint, double w1=1e3, double w2=0.0)</td></tr>
+<tr class="separator:a1a6e6e32b923b1e597ad92013fc17e91"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a8bc22c81d3a5a90943917b256299576f" id="r_a8bc22c81d3a5a90943917b256299576f"><td class="memItemLeft" align="right" valign="top"><a id="a8bc22c81d3a5a90943917b256299576f" name="a8bc22c81d3a5a90943917b256299576f"></a>
 virtual casadi::MX&#160;</td><td class="memItemRight" valign="bottom"><b>stage_cost</b> (casadi::MX x, casadi::MX u, size_t k)</td></tr>
 <tr class="separator:a8bc22c81d3a5a90943917b256299576f"><td class="memSeparator" colspan="2">&#160;</td></tr>

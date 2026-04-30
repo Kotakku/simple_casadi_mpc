@@ -199,7 +199,18 @@ diff_drive_mpc_example</h2>
     <div class="image">
 <img src="diff_drive.gif" alt=""/>
 </div>
-    <h1><a class="anchor" id="autotoc_md11"></a>
+    <h2><a class="anchor" id="autotoc_md11"></a>
+diff_drive_soft_constraint_example</h2>
+<p>Same diff-drive setup with a single circular obstacle, comparing <code>add_constraint</code> (hard) and <code>soft_add_constraint</code> (soft) for the obstacle. With a large penalty weight the soft formulation matches the hard one; with a small weight the optimizer prefers cutting through the obstacle if the tracking gain dominates the violation cost.</p>
+<p>From: <a href="https://github.com/Kotakku/simple_casadi_mpc/blob/main/example/diff_drive_soft_constraint_example.cpp">example/diff_drive_soft_constraint_example.cpp</a></p>
+<h1><a class="anchor" id="autotoc_md12"></a>
+Soft constraints</h1>
+<p><code>Problem::soft_add_constraint(type, func, w1, w2)</code> introduces non-negative per-stage slack variables <code>s ≥ 0</code> and adds <code>w1 · 1ᵀs + 0.5 · w2 · sᵀs</code> to the cost.</p><ul>
+<li>Inequality <code>g(x,u) ≤ 0</code> becomes <code>g − s ≤ 0</code>.</li>
+<li>Equality <code>h(x,u) = 0</code> becomes <code>|h| ≤ s</code>, encoded as <code>h − s ≤ 0</code> and <code>−h − s ≤ 0</code>.</li>
+</ul>
+<p>The default <code>w2 = 0</code> gives a pure L1 (exact) penalty; setting <code>w2 &gt; 0</code> adds an L2 (smooth) term. Large <code>w1</code> recovers hard-constraint behavior; small <code>w1</code> allows the optimizer to trade violation against the rest of the cost. Hard <code>add_constraint</code> and soft <code>soft_add_constraint</code> can be mixed on the same problem.</p>
+<h1><a class="anchor" id="autotoc_md13"></a>
 Benchmarks</h1>
 <p>Runtime comparisons for cartpole MPC solver variants.</p>
 <div class="image">
@@ -211,7 +222,7 @@ Benchmarks</h1>
     <div class="image">
 <img src="bench_cartpole_jit_vs_compiled_mpc_solve_time_comparison.png" alt=""/>
 </div>
-    <h1><a class="anchor" id="autotoc_md12"></a>
+    <h1><a class="anchor" id="autotoc_md14"></a>
 Documentation</h1>
 <p>1) Fetch submodules: </p><div class="fragment"><div class="line">git submodule update --init --recursive</div>
 </div><!-- fragment --><p> 2) Generate docs: </p><div class="fragment"><div class="line">cd doc</div>

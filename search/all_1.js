@@ -6,5 +6,6 @@ var searchData=
   ['cmake_20usage_3',['CMake usage',['../index.html#autotoc_md3',1,'']]],
   ['compiledlibraryconfig_4',['CompiledLibraryConfig',['../structsimple__casadi__mpc_1_1CompiledMPC_1_1CompiledLibraryConfig.html',1,'simple_casadi_mpc::CompiledMPC']]],
   ['compiledmpc_5',['CompiledMPC',['../classsimple__casadi__mpc_1_1CompiledMPC.html',1,'simple_casadi_mpc']]],
-  ['compiledmpc_20via_20cmake_6',['Usage for CompiledMPC via CMake',['../index.html#autotoc_md5',1,'']]]
+  ['compiledmpc_20via_20cmake_6',['Usage for CompiledMPC via CMake',['../index.html#autotoc_md5',1,'']]],
+  ['constraints_7',['Soft constraints',['../index.html#autotoc_md12',1,'']]]
 ];

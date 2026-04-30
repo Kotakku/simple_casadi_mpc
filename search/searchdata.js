@@ -1,7 +1,7 @@
 var indexSectionsWithContent =
 {
-  0: "bcdefijmopsuv",
-  1: "cdijmp",
+  0: "bcdefijmopstuv",
+  1: "cdijmpt",
   2: "s"
 };
 
