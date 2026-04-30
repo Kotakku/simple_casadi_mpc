@@ -112,7 +112,7 @@ int main() {
   auto plt = matplotlibcpp17::pyplot::import();
 
   casadi::DMDict param_list;
-  // 2 つの障害物のあいだを通り抜ける必要があるゴール
+  // 直線経路上の障害物をまたぐ目標位置
   param_list["x_ref"] = std::vector<double>{1, 0.0, 0, 0, 0};
   Eigen::VectorXd x0(5);
   x0 << -1, 0.0, 0, 0, 0;
