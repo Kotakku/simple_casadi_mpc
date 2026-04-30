@@ -97,6 +97,18 @@ From: [example/diff_drive_mpc_example.cpp](https://github.com/Kotakku/simple_cas
 
 ![](gallery/example/diff_drive.gif)
 
+### diff_drive_soft_constraint_example
+Same diff-drive setup with a single circular obstacle, comparing `add_constraint` (hard) and `soft_add_constraint` (soft) for the obstacle. With a large penalty weight the soft formulation matches the hard one; with a small weight the optimizer prefers cutting through the obstacle if the tracking gain dominates the violation cost.
+
+From: [example/diff_drive_soft_constraint_example.cpp](https://github.com/Kotakku/simple_casadi_mpc/blob/main/example/diff_drive_soft_constraint_example.cpp)
+
+## Soft constraints
+`Problem::soft_add_constraint(type, func, w1, w2)` introduces non-negative per-stage slack variables `s ≥ 0` and adds `w1 · 1ᵀs + 0.5 · w2 · sᵀs` to the cost.
+- Inequality `g(x,u) ≤ 0` becomes `g − s ≤ 0`.
+- Equality `h(x,u) = 0` becomes `|h| ≤ s`, encoded as `h − s ≤ 0` and `−h − s ≤ 0`.
+
+The default `w2 = 0` gives a pure L1 (exact) penalty; setting `w2 > 0` adds an L2 (smooth) term. Large `w1` recovers hard-constraint behavior; small `w1` allows the optimizer to trade violation against the rest of the cost. Hard `add_constraint` and soft `soft_add_constraint` can be mixed on the same problem.
+
 ## Benchmarks
 Runtime comparisons for cartpole MPC solver variants.
 
