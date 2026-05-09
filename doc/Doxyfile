@@ -41,6 +41,9 @@ INLINE_SOURCES         = NO
 
 QUIET                  = YES
 WARN_IF_UNDOCUMENTED   = NO
+WARN_IF_DOC_ERROR      = NO
 
 USE_MATHJAX            = YES
 MATHJAX_VERSION        = MathJax_3
+MATHJAX_EXTENSIONS     = ams
+MATHJAX_CODEFILE       = mathjax-config.js

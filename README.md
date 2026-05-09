@@ -45,14 +45,14 @@ The library solves the following discrete-time finite-horizon optimal control pr
 
 $$
 \begin{aligned}
-\min_{\substack{x_0,\dots,x_N \\ u_0,\dots,u_{N-1}}} \quad
-& \sum_{k=0}^{N-1} L(x_k, u_k, k;\,p) \;+\; \Phi(x_N;\,p) \\
+\min_{\substack{x_0,\dots,x_N \cr u_0,\dots,u_{N-1}}} \quad
+& \sum_{k=0}^{N-1} L(x_k, u_k, k;\,p) \;+\; \Phi(x_N;\,p) \cr
 \text{s.t.} \quad
-& x_0 = x_\text{init}, \\
-& x_{k+1} = f_d(x_k, u_k;\,p), && k = 0, \dots, N-1, \\
-& g_\text{eq}^{(i)}(x_k, u_k;\,p) = 0, && k = 0, \dots, N-1,\; i = 1, \dots, n_\text{eq}, \\
-& g_\text{ineq}^{(j)}(x_k, u_k;\,p) \le 0, && k = 0, \dots, N-1,\; j = 1, \dots, n_\text{ineq}, \\
-& x_{\text{lb},k} \le x_k \le x_{\text{ub},k}, && k = 0, \dots, N, \\
+& x_0 = x_\text{init}, \cr
+& x_{k+1} = f_d(x_k, u_k;\,p), && k = 0, \dots, N-1, \cr
+& g_\text{eq}^{(i)}(x_k, u_k;\,p) = 0, && k = 0, \dots, N-1,\; i = 1, \dots, n_\text{eq}, \cr
+& g_\text{ineq}^{(j)}(x_k, u_k;\,p) \le 0, && k = 0, \dots, N-1,\; j = 1, \dots, n_\text{ineq}, \cr
+& x_{\text{lb},k} \le x_k \le x_{\text{ub},k}, && k = 0, \dots, N, \cr
 & u_{\text{lb},k} \le u_k \le u_{\text{ub},k}, && k = 0, \dots, N-1.
 \end{aligned}
 $$
@@ -73,7 +73,7 @@ Symbol mapping:
 | $p$                                       | runtime parameters via `Problem::parameter(...)` / `reference_trajectory(...)`                                           |
 | $x_\text{init}$                           | first argument to `MPC::solve(x, ...)`                                                                                   |
 
-For `DynamicsType::ContinuesForwardEuler`, `ContinuesModifiedEuler`, and `ContinuesRK4`, $f_d$ is the corresponding one-step integrator applied to the user-supplied continuous dynamics $\dot{x} = f(x, u)$ with step size $\Delta t$. For `DynamicsType::Discretized` the user supplies $f_d$ directly.
+For `DynamicsType::ContinuesForwardEuler`, `ContinuesModifiedEuler`, and `ContinuesRK4`, $f_d$ is the corresponding one-step integrator applied to the user-supplied continuous dynamics $\frac{dx}{dt} = f(x, u)$ with step size $\Delta t$. For `DynamicsType::Discretized` the user supplies $f_d$ directly.
 
 Soft constraints add slack $s \ge 0$ and a penalty term to the cost; see [Soft constraints](#soft-constraints) below.
 
