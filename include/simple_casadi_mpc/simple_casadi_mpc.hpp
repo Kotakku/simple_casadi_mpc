@@ -84,6 +84,10 @@ public:
   /// Each entry of `_dts` is the integration step \f$\Delta t_k\f$ used between
   /// stage \f$k\f$ and \f$k+1\f$. Use this overload when the prediction
   /// horizon spans non-uniform time intervals (e.g. coarse-to-fine schedules).
+  /// @param dyn_type discretization scheme used by @ref dynamics.
+  /// @param _nx state dimension.
+  /// @param _nu control dimension.
+  /// @param _horizon number of stages in the optimization (N).
   /// @param _dts per-stage time steps, must have size == `_horizon`.
   Problem(DynamicsType dyn_type, size_t _nx, size_t _nu, size_t _horizon, std::vector<double> _dts)
       : dyn_type_(dyn_type), nx_(_nx), nu_(_nu), horizon_(_horizon), dts_(std::move(_dts)) {
@@ -219,10 +223,28 @@ public:
   /// @param constrinat callable returning the constraint vector at one stage.
   void add_constraint(ConstraintType type,
                       std::function<casadi::MX(casadi::MX, casadi::MX)> constrinat) {
+    add_constraint_at(type, constrinat, /*start=*/-1, /*end=*/-1);
+  }
+
+  /// @brief Add a hard path constraint applied only at the specified stage range.
+  ///
+  /// Range semantics match @ref set_input_bound:
+  /// - `start == -1, end == -1`           → all stages \f$[0, N)\f$ (same as @ref add_constraint).
+  /// - `start != -1, end == -1`           → only stage `start`.
+  /// - `start != -1, end != -1`           → stages \f$[\text{start}, \text{end})\f$.
+  ///
+  /// Internally the constraint is still attached to the per-stage `g(x, u)`
+  /// vector (so the symbolic structure remains uniform across stages); the
+  /// path-constraint bound is set to \f$[-\infty, +\infty]\f$ on inactive
+  /// stages so it does not influence the solution.
+  void add_constraint_at(ConstraintType type,
+                         std::function<casadi::MX(casadi::MX, casadi::MX)> constraint, int start,
+                         int end = -1) {
+    auto mask = stage_mask(start, end);
     if (type == ConstraintType::Equality) {
-      equality_constrinats_.push_back(constrinat);
+      equality_constraints_.push_back({constraint, std::move(mask)});
     } else {
-      inequality_constrinats_.push_back(constrinat);
+      inequality_constraints_.push_back({constraint, std::move(mask)});
     }
   }
 
@@ -248,7 +270,18 @@ public:
   void add_soft_constraint(ConstraintType type,
                            std::function<casadi::MX(casadi::MX, casadi::MX)> constraint,
                            double w1 = 1e3, double w2 = 0.0) {
-    soft_constraints_.push_back({type, constraint, w1, w2});
+    add_soft_constraint_at(type, constraint, w1, w2, /*start=*/-1, /*end=*/-1);
+  }
+
+  /// @brief Add a soft path constraint applied only at the specified stage range.
+  ///
+  /// Range semantics match @ref add_constraint_at. On inactive stages the
+  /// associated slack is forced to 0 (so the penalty contributes nothing) and
+  /// the relaxed constraint bound is set to \f$[-\infty, +\infty]\f$.
+  void add_soft_constraint_at(ConstraintType type,
+                              std::function<casadi::MX(casadi::MX, casadi::MX)> constraint,
+                              double w1, double w2, int start, int end = -1) {
+    soft_constraints_.push_back({type, constraint, w1, w2, stage_mask(start, end)});
   }
 
   /// @brief Stage cost \f$L(x_k, u_k, k;\,p)\f$ at step \f$k\f$. Default returns 0.
@@ -328,6 +361,14 @@ private:
     return {start, end};
   }
 
+  std::vector<bool> stage_mask(int start, int end) {
+    auto [s, e] = index_range(start, end);
+    std::vector<bool> mask(horizon_, false);
+    for (int k = s; k < e; ++k)
+      mask[k] = true;
+    return mask;
+  }
+
   const DynamicsType dyn_type_;
   const size_t nx_;
   const size_t nu_;
@@ -335,14 +376,20 @@ private:
   const std::vector<double> dts_;
 
   using ConstraintFunc = std::function<casadi::MX(casadi::MX, casadi::MX)>;
-  std::vector<ConstraintFunc> equality_constrinats_;
-  std::vector<ConstraintFunc> inequality_constrinats_;
+
+  struct PathConstraint {
+    ConstraintFunc func;
+    std::vector<bool> stage_mask; // size == horizon; true at stages where the constraint is active.
+  };
+  std::vector<PathConstraint> equality_constraints_;
+  std::vector<PathConstraint> inequality_constraints_;
 
   struct SoftConstraint {
     ConstraintType type;
     ConstraintFunc func;
     double w1;
     double w2;
+    std::vector<bool> stage_mask;
   };
   std::vector<SoftConstraint> soft_constraints_;
 
@@ -640,11 +687,19 @@ protected:
 
     // 制約一覧
     std::vector<MX> g_k_vec;
-    for (auto &con : prob_->equality_constrinats_) {
-      g_k_vec.push_back(con(x_k, u_k));
+    std::vector<casadi_int> equality_sizes; // size of each equality constraint (per stage)
+    std::vector<casadi_int> inequality_sizes;
+    equality_sizes.reserve(prob_->equality_constraints_.size());
+    inequality_sizes.reserve(prob_->inequality_constraints_.size());
+    for (auto &con : prob_->equality_constraints_) {
+      MX g_part = con.func(x_k, u_k);
+      equality_sizes.push_back(g_part.size1());
+      g_k_vec.push_back(g_part);
     }
-    for (auto &con : prob_->inequality_constrinats_) {
-      g_k_vec.push_back(con(x_k, u_k));
+    for (auto &con : prob_->inequality_constraints_) {
+      MX g_part = con.func(x_k, u_k);
+      inequality_sizes.push_back(g_part.size1());
+      g_k_vec.push_back(g_part);
     }
 
     // ソフト制約用のスラック変数を per-stage に確保し、対応する不等式を g_k に追加する。
@@ -870,8 +925,14 @@ protected:
       ubw_numeric.insert(ubw_numeric.end(), u_bounds[i].second.data(),
                          u_bounds[i].second.data() + nu);
       if (n_s_total > 0) {
-        lbw_numeric.insert(lbw_numeric.end(), n_s_total, 0.0);
-        ubw_numeric.insert(ubw_numeric.end(), n_s_total, inf);
+        // Slack bound is [0, inf] on stages where the soft constraint is
+        // active and [0, 0] (force s = 0) elsewhere.
+        for (size_t s_i = 0; s_i < prob_->soft_constraints_.size(); ++s_i) {
+          const casadi_int m = soft_sizes[s_i];
+          const bool active = prob_->soft_constraints_[s_i].stage_mask[i];
+          lbw_numeric.insert(lbw_numeric.end(), m, 0.0);
+          ubw_numeric.insert(ubw_numeric.end(), m, active ? inf : 0.0);
+        }
       }
     }
     // Bounds for x_N
@@ -886,29 +947,37 @@ protected:
     ubg_numeric.insert(ubg_numeric.end(), nx * N, 0.0);
     equality_.insert(equality_.end(), nx * N, true);
 
-    // Path constraints bounds
+    // Path constraints bounds. Inactive stages of staged constraints get
+    // bounds set to [-inf, +inf] so the constraint is symbolically present
+    // (uniform map structure) but does not influence the solution.
     for (casadi_int i = 0; i < N; ++i) {
-      for (auto &con : prob_->equality_constrinats_) {
-        auto con_val = con(x_k, u_k); // For getting size
-        lbg_numeric.insert(lbg_numeric.end(), con_val.size1(), 0.0);
-        ubg_numeric.insert(ubg_numeric.end(), con_val.size1(), 0.0);
-
-        equality_.insert(equality_.end(), con_val.size1(), true);
+      for (size_t ci = 0; ci < prob_->equality_constraints_.size(); ++ci) {
+        auto &con = prob_->equality_constraints_[ci];
+        const casadi_int sz = equality_sizes[ci];
+        const bool active = con.stage_mask[i];
+        lbg_numeric.insert(lbg_numeric.end(), sz, active ? 0.0 : -inf);
+        ubg_numeric.insert(ubg_numeric.end(), sz, active ? 0.0 : inf);
+        equality_.insert(equality_.end(), sz, active);
       }
-      for (auto &con : prob_->inequality_constrinats_) {
-        auto con_val = con(x_k, u_k); // For getting size
-        lbg_numeric.insert(lbg_numeric.end(), con_val.size1(), -inf);
-        ubg_numeric.insert(ubg_numeric.end(), con_val.size1(), 0.0);
-
-        equality_.insert(equality_.end(), con_val.size1(), false);
+      for (size_t ci = 0; ci < prob_->inequality_constraints_.size(); ++ci) {
+        auto &con = prob_->inequality_constraints_[ci];
+        const casadi_int sz = inequality_sizes[ci];
+        const bool active = con.stage_mask[i];
+        lbg_numeric.insert(lbg_numeric.end(), sz, -inf);
+        ubg_numeric.insert(ubg_numeric.end(), sz, active ? 0.0 : inf);
+        equality_.insert(equality_.end(), sz, false);
       }
-      // ソフト制約の path 制約 (どちらも片側不等式 [-inf, 0])
+      // Soft path constraints (both forms are one-sided inequalities <= 0).
+      // On inactive stages the bound is relaxed to [-inf, +inf]; combined
+      // with the slack pinned to [0, 0] above, this nulls the constraint and
+      // its penalty contribution at those stages.
       for (size_t s_i = 0; s_i < prob_->soft_constraints_.size(); ++s_i) {
+        auto &sc = prob_->soft_constraints_[s_i];
         const casadi_int m = soft_sizes[s_i];
-        const casadi_int rows =
-            (prob_->soft_constraints_[s_i].type == Problem::ConstraintType::Inequality) ? m : 2 * m;
+        const casadi_int rows = (sc.type == Problem::ConstraintType::Inequality) ? m : 2 * m;
+        const bool active = sc.stage_mask[i];
         lbg_numeric.insert(lbg_numeric.end(), rows, -inf);
-        ubg_numeric.insert(ubg_numeric.end(), rows, 0.0);
+        ubg_numeric.insert(ubg_numeric.end(), rows, active ? 0.0 : inf);
         equality_.insert(equality_.end(), rows, false);
       }
     }

@@ -153,6 +153,18 @@ add_constraint(ConstraintType::Equality, [](casadi::MX x, casadi::MX u) {
 });
 ```
 
+To apply a constraint only to a subset of stages, use `add_constraint_at(type, func, start, end)`. Range semantics match `set_input_bound`:
+
+```cpp
+// Only at stage 0 (single-stage form, omit `end`)
+add_constraint_at(ConstraintType::Equality,
+                  [&](casadi::MX x, casadi::MX) { return x - x_target; }, 0);
+
+// Only on stages [N-3, N) (terminal-band)
+add_constraint_at(ConstraintType::Inequality,
+                  [&](casadi::MX x, casadi::MX) { return x - x_safe; }, N - 3, N);
+```
+
 ### Soft path constraints
 
 `add_soft_constraint(type, func, w1, w2)` introduces non-negative per-stage slack variables $s \ge 0$ and adds the penalty $w_1 \mathbf{1}^\top s + \tfrac{1}{2} w_2 s^\top s$ to the cost. The original constraint is relaxed as:
@@ -169,6 +181,14 @@ add_soft_constraint(ConstraintType::Inequality, my_constraint, /*w1=*/1e2, /*w2=
 ```
 
 The default `w2 = 0` gives a pure L1 (exact) penalty; `w2 > 0` adds an L2 (smooth) term. Large `w1` recovers hard-constraint behavior; small `w1` lets the optimizer trade violation against the rest of the cost. Hard `add_constraint` and soft `add_soft_constraint` may be mixed on the same problem.
+
+Stage-specific variants are also available — same `start`/`end` semantics as `add_constraint_at`:
+
+```cpp
+add_soft_constraint_at(ConstraintType::Inequality, my_constraint,
+                       /*w1=*/1e3, /*w2=*/0.0,
+                       /*start=*/N - 3, /*end=*/N); // only the last 3 stages
+```
 
 ### Usage for CompiledMPC via CMake
 
