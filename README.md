@@ -75,7 +75,7 @@ Symbol mapping:
 
 For `DynamicsType::ContinuesForwardEuler`, `ContinuesModifiedEuler`, and `ContinuesRK4`, $f_d$ is the corresponding one-step integrator applied to the user-supplied continuous dynamics $\frac{dx}{dt} = f(x, u)$ with step size $\Delta t$. For `DynamicsType::Discretized` the user supplies $f_d$ directly.
 
-Soft constraints add slack $s \ge 0$ and a penalty term to the cost; see [Soft constraints](#soft-constraints) below.
+Soft constraints add slack $s \ge 0$ and a penalty term to the cost; see [Soft path constraints](#soft-path-constraints) below.
 
 ### Defining a problem
 
@@ -133,7 +133,42 @@ for (...) {
 }
 ```
 
-Hard and soft path constraints (`g(x, u) <= 0` or `= 0`) can be added with `add_constraint` / `soft_add_constraint`; see below.
+### Hard path constraints
+
+Add equality / inequality path constraints applied at every stage:
+
+```cpp
+// In your Problem subclass constructor:
+
+// Inequality g(x, u) <= 0  (e.g. circular obstacle: r^2 - |xy - c|^2 <= 0)
+add_constraint(ConstraintType::Inequality, [](casadi::MX x, casadi::MX u) {
+  using namespace casadi;
+  MX dx = x(0) - 1.0, dy = x(1) - 0.5;
+  return MX::vertcat({0.5 * 0.5 - (dx * dx + dy * dy)});
+});
+
+// Equality g(x, u) = 0
+add_constraint(ConstraintType::Equality, [](casadi::MX x, casadi::MX u) {
+  return casadi::MX::vertcat({u(0) + u(1)}); // e.g. force a coupling
+});
+```
+
+### Soft path constraints
+
+`add_soft_constraint(type, func, w1, w2)` introduces non-negative per-stage slack variables $s \ge 0$ and adds the penalty $w_1 \mathbf{1}^\top s + \tfrac{1}{2} w_2 s^\top s$ to the cost. The original constraint is relaxed as:
+
+- Inequality $g(x, u) \le 0 \;\to\; g - s \le 0$.
+- Equality $h(x, u) = 0 \;\to\; |h| \le s$, i.e. $h - s \le 0$ and $-h - s \le 0$.
+
+```cpp
+// Soft inequality with L1 weight 1e3 (default) and no L2 term.
+add_soft_constraint(ConstraintType::Inequality, my_constraint);
+
+// Mixed L1 + L2 penalty.
+add_soft_constraint(ConstraintType::Inequality, my_constraint, /*w1=*/1e2, /*w2=*/1.0);
+```
+
+The default `w2 = 0` gives a pure L1 (exact) penalty; `w2 > 0` adds an L2 (smooth) term. Large `w1` recovers hard-constraint behavior; small `w1` lets the optimizer trade violation against the rest of the cost. Hard `add_constraint` and soft `add_soft_constraint` may be mixed on the same problem.
 
 ### Usage for CompiledMPC via CMake
 
@@ -205,18 +240,9 @@ From: [example/diff_drive_mpc_example.cpp](https://github.com/Kotakku/simple_cas
 
 ### diff_drive_soft_constraint_example
 
-Same diff-drive setup with a single circular obstacle, comparing `add_constraint` (hard) and `soft_add_constraint` (soft) for the obstacle. With a large penalty weight the soft formulation matches the hard one; with a small weight the optimizer prefers cutting through the obstacle if the tracking gain dominates the violation cost.
+Same diff-drive setup with a single circular obstacle, comparing `add_constraint` (hard) and `add_soft_constraint` (soft) for the obstacle. With a large penalty weight the soft formulation matches the hard one; with a small weight the optimizer prefers cutting through the obstacle if the tracking gain dominates the violation cost.
 
 From: [example/diff_drive_soft_constraint_example.cpp](https://github.com/Kotakku/simple_casadi_mpc/blob/main/example/diff_drive_soft_constraint_example.cpp)
-
-## Soft constraints
-
-`Problem::soft_add_constraint(type, func, w1, w2)` introduces non-negative per-stage slack variables `s ≥ 0` and adds `w1 · 1ᵀs + 0.5 · w2 · sᵀs` to the cost.
-
-- Inequality `g(x,u) ≤ 0` becomes `g − s ≤ 0`.
-- Equality `h(x,u) = 0` becomes `|h| ≤ s`, encoded as `h − s ≤ 0` and `−h − s ≤ 0`.
-
-The default `w2 = 0` gives a pure L1 (exact) penalty; setting `w2 > 0` adds an L2 (smooth) term. Large `w1` recovers hard-constraint behavior; small `w1` allows the optimizer to trade violation against the rest of the cost. Hard `add_constraint` and soft `soft_add_constraint` can be mixed on the same problem.
 
 ## Tips
 

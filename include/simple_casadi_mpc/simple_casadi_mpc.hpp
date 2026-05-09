@@ -62,7 +62,7 @@ public:
     Discretized,            ///< User supplies x_{k+1} directly.
   };
 
-  /// @brief Constraint kind passed to @ref add_constraint and @ref soft_add_constraint.
+  /// @brief Constraint kind passed to @ref add_constraint and @ref add_soft_constraint.
   enum class ConstraintType {
     Equality,  ///< `g(x, u) = 0`.
     Inequality ///< `g(x, u) <= 0`.
@@ -227,13 +227,13 @@ public:
   ///
   /// \f$w_2 = 0\f$ (default) gives a pure L1 (exact) penalty; \f$w_2 > 0\f$
   /// adds an L2 (smooth) term. Hard `add_constraint` and soft
-  /// `soft_add_constraint` may be mixed on the same problem.
+  /// `add_soft_constraint` may be mixed on the same problem.
   ///
   /// @param type     constraint kind, see @ref ConstraintType.
   /// @param constraint callable returning the constraint vector at one stage.
   /// @param w1       L1 penalty weight \f$w_1\f$ (default 1e3).
   /// @param w2       L2 penalty weight \f$w_2\f$ (default 0.0).
-  void soft_add_constraint(ConstraintType type,
+  void add_soft_constraint(ConstraintType type,
                            std::function<casadi::MX(casadi::MX, casadi::MX)> constraint,
                            double w1 = 1e3, double w2 = 0.0) {
     soft_constraints_.push_back({type, constraint, w1, w2});
