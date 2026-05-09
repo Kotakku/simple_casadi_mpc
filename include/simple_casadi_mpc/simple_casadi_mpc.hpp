@@ -8,13 +8,22 @@
 #include <numeric>
 #include <vector>
 
+/// Lightweight C++ utilities for building and solving MPC problems with CasADi.
 namespace simple_casadi_mpc {
 
+/// @brief Forward Euler one-step integrator: `x_{k+1} = x + dt * f(x, u)`.
+/// @tparam T scalar type (e.g. casadi::MX for symbolic build, Eigen::VectorXd for numeric eval).
+/// @param dt step size.
+/// @param x state at step k.
+/// @param u input applied between k and k+1.
+/// @param dynamics continuous-time dynamics function `f(x, u)` returning dx/dt.
 template <class T>
 static T integrate_dynamics_forward_euler(double dt, T x, T u, std::function<T(T, T)> dynamics) {
   return x + dt * dynamics(x, u);
 }
 
+/// @brief Modified (Heun) Euler one-step integrator: 2nd-order explicit.
+/// @copydetails integrate_dynamics_forward_euler
 template <class T>
 static T integrate_dynamics_modified_euler(double dt, T x, T u, std::function<T(T, T)> dynamics) {
   T k1 = dynamics(x, u);
@@ -23,6 +32,8 @@ static T integrate_dynamics_modified_euler(double dt, T x, T u, std::function<T(
   return x + dt * (k1 + k2) / 2;
 }
 
+/// @brief Classical 4-stage Runge-Kutta one-step integrator.
+/// @copydetails integrate_dynamics_forward_euler
 template <class T>
 static T integrate_dynamics_rk4(double dt, T x, T u, std::function<T(T, T)> dynamics) {
   T k1 = dynamics(x, u);
@@ -32,17 +43,37 @@ static T integrate_dynamics_rk4(double dt, T x, T u, std::function<T(T, T)> dyna
   return x + dt / 6 * (k1 + 2 * k2 + 2 * k3 + k4);
 }
 
+/// @brief Base class describing an MPC optimal control problem.
+///
+/// Derive from this class and override @ref dynamics, @ref stage_cost and
+/// optionally @ref terminal_cost. Constraints, bounds and time-varying
+/// parameters are configured via the public methods on this class.
+///
+/// The optimization horizon is fixed at construction time. The dynamics may be
+/// either continuous (auto-discretized via Forward Euler / Modified Euler /
+/// RK4) or already discretized.
 class Problem {
 public:
+  /// @brief Discretization scheme used to advance the dynamics.
   enum class DynamicsType {
-    ContinuesForwardEuler,
-    ContinuesModifiedEuler,
-    ContinuesRK4,
-    Discretized,
+    ContinuesForwardEuler,  ///< Continuous-time, integrated by forward Euler.
+    ContinuesModifiedEuler, ///< Continuous-time, integrated by Heun's method.
+    ContinuesRK4,           ///< Continuous-time, integrated by classical RK4.
+    Discretized,            ///< User supplies x_{k+1} directly.
   };
 
-  enum class ConstraintType { Equality, Inequality };
+  /// @brief Constraint kind passed to @ref add_constraint and @ref soft_add_constraint.
+  enum class ConstraintType {
+    Equality,  ///< `g(x, u) = 0`.
+    Inequality ///< `g(x, u) <= 0`.
+  };
 
+  /// @brief Construct a problem with a fixed prediction horizon.
+  /// @param dyn_type discretization scheme used by @ref dynamics.
+  /// @param _nx state dimension.
+  /// @param _nu control dimension.
+  /// @param _horizon number of stages in the optimization (N).
+  /// @param _dt time step in seconds (used by continuous dynamics).
   Problem(DynamicsType dyn_type, size_t _nx, size_t _nu, size_t _horizon, double _dt)
       : dyn_type_(dyn_type), nx_(_nx), nu_(_nu), horizon_(_horizon), dt_(_dt) {
     double inf = std::numeric_limits<double>::infinity();
@@ -56,12 +87,19 @@ public:
     x_bounds_ = std::vector<LUbound>{horizon(), {xlb, xub}};
   }
 
-  // ダイナミクス
-  // 連続系の場合は、xとuを引数にとり、dxを返す、コンストラクタで離散化手法を{ContinuesForwardEuler,
-  // ContinuesModifiedEuler, ContinuesRK4}から選択する
-  // 離散系の場合は、xとuを引数にとり、x(k+1)を返す、コンストラクタでDiscretizedと指定する
+  /// @brief Symbolic dynamics, must be overridden by the user.
+  ///
+  /// For a continuous DynamicsType, return `dx/dt` given the current `(x, u)`;
+  /// the discretization is applied automatically by the chosen
+  /// @ref DynamicsType.
+  /// For DynamicsType::Discretized, return the next state `x_{k+1}` directly.
+  ///
+  /// @param x state, shape (nx, 1).
+  /// @param u input, shape (nu, 1).
+  /// @return either `dx/dt` (continuous) or `x_{k+1}` (discrete), shape (nx, 1).
   virtual casadi::MX dynamics(casadi::MX x, casadi::MX u) = 0;
 
+  /// @brief Evaluate @ref dynamics at numeric `(x, u)`. Useful for plant simulation.
   Eigen::VectorXd dynamics_eval(Eigen::VectorXd x, Eigen::VectorXd u) {
     casadi::DM x_dm = casadi::DM::zeros(nx(), 1);
     casadi::DM u_dm = casadi::DM::zeros(nu(), 1);
@@ -77,11 +115,18 @@ public:
     return dx;
   }
 
+  /// @brief Advance the plant one step using the user-provided discrete dynamics.
+  /// @pre `dynamics_type() == DynamicsType::Discretized`.
   Eigen::VectorXd simulate(Eigen::VectorXd x0, Eigen::MatrixXd u) {
     assert(dyn_type_ == DynamicsType::Discretized);
     return dynamics_eval(x0, u);
   }
 
+  /// @brief Advance the plant `dt` seconds using the configured continuous integrator.
+  /// @pre `dynamics_type() != DynamicsType::Discretized`.
+  /// @param x0 current state, shape (nx,).
+  /// @param u  control held over the step.
+  /// @param dt simulation step (independent of the MPC discretization step).
   Eigen::VectorXd simulate(Eigen::VectorXd x0, Eigen::MatrixXd u, double dt) {
     assert(dyn_type_ != DynamicsType::Discretized);
     auto dyn =
@@ -102,7 +147,12 @@ public:
     return x0;
   }
 
-  // 操作量と状態量の上下限
+  /// @brief Set per-stage input bounds `lb <= u_k <= ub`.
+  /// @param lb lower bound, shape (nu,).
+  /// @param ub upper bound, shape (nu,).
+  /// @param start first stage (inclusive), or -1 for all stages.
+  /// @param end one-past-last stage, or -1 (with `start == -1` applies to all stages;
+  ///        with `start != -1, end == -1` applies to the single stage `start`).
   void set_input_bound(Eigen::VectorXd lb, Eigen::VectorXd ub, int start = -1, int end = -1) {
     std::tie(start, end) = index_range(start, end);
     for (int i = start; i < end; i++) {
@@ -110,6 +160,7 @@ public:
     }
   }
 
+  /// @brief Set only the lower bound on the input. See @ref set_input_bound for `start`/`end`.
   void set_input_lower_bound(Eigen::VectorXd lb, int start = -1, int end = -1) {
     std::tie(start, end) = index_range(start, end);
     for (int i = start; i < end; i++) {
@@ -117,6 +168,7 @@ public:
     }
   }
 
+  /// @brief Set only the upper bound on the input. See @ref set_input_bound for `start`/`end`.
   void set_input_upper_bound(Eigen::VectorXd ub, int start = -1, int end = -1) {
     std::tie(start, end) = index_range(start, end);
     for (int i = start; i < end; i++) {
@@ -124,6 +176,8 @@ public:
     }
   }
 
+  /// @brief Set per-stage state bounds `lb <= x_k <= ub`. Range semantics match @ref
+  /// set_input_bound.
   void set_state_bound(Eigen::VectorXd lb, Eigen::VectorXd ub, int start = -1, int end = -1) {
     std::tie(start, end) = index_range(start, end);
     for (int i = start; i < end; i++) {
@@ -131,6 +185,7 @@ public:
     }
   }
 
+  /// @brief Set only the lower bound on the state. See @ref set_input_bound for `start`/`end`.
   void set_state_lower_bound(Eigen::VectorXd lb, int start = -1, int end = -1) {
     std::tie(start, end) = index_range(start, end);
     for (int i = start; i < end; i++) {
@@ -138,6 +193,7 @@ public:
     }
   }
 
+  /// @brief Set only the upper bound on the state. See @ref set_input_bound for `start`/`end`.
   void set_state_upper_bound(Eigen::VectorXd ub, int start = -1, int end = -1) {
     std::tie(start, end) = index_range(start, end);
     for (int i = start; i < end; i++) {
@@ -145,6 +201,10 @@ public:
     }
   }
 
+  /// @brief Add a hard path constraint applied at every stage.
+  /// @param type ConstraintType::Equality (`g(x,u) = 0`) or
+  ///        ConstraintType::Inequality (`g(x,u) <= 0`).
+  /// @param constrinat callable returning the constraint vector at one stage.
   void add_constraint(ConstraintType type,
                       std::function<casadi::MX(casadi::MX, casadi::MX)> constrinat) {
     if (type == ConstraintType::Equality) {
@@ -154,18 +214,32 @@ public:
     }
   }
 
-  // Soft constraint: introduces non-negative slack variables s >= 0 and adds
-  //   penalty = w1 * 1^T s + 0.5 * w2 * s^T s
-  // to the cost. For inequality g(x,u) <= 0 the constraint becomes g - s <= 0.
-  // For equality h(x,u) = 0 it becomes |h| <= s, i.e. (h - s <= 0) and (-h - s <= 0).
-  // Pure L1 (exact) penalty is the default; set w2 > 0 to add an L2 (smooth) term.
+  /// @brief Add a soft path constraint with per-stage non-negative slack.
+  ///
+  /// Introduces slack `s >= 0` and adds the penalty
+  ///   `w1 * 1^T s + 0.5 * w2 * s^T s`
+  /// to the cost. The original constraint is relaxed as:
+  /// - Inequality `g(x, u) <= 0`  ->  `g - s <= 0`.
+  /// - Equality   `h(x, u) =  0`  ->  `|h| <= s`, i.e. `h - s <= 0` and `-h - s <= 0`.
+  ///
+  /// `w2 == 0` (default) gives a pure L1 (exact) penalty; `w2 > 0` adds an L2
+  /// (smooth) term. Hard `add_constraint` and soft `soft_add_constraint` may
+  /// be mixed on the same problem.
+  ///
+  /// @param type     constraint kind, see @ref ConstraintType.
+  /// @param constraint callable returning the constraint vector at one stage.
+  /// @param w1       L1 penalty weight (default 1e3).
+  /// @param w2       L2 penalty weight (default 0.0).
   void soft_add_constraint(ConstraintType type,
                            std::function<casadi::MX(casadi::MX, casadi::MX)> constraint,
                            double w1 = 1e3, double w2 = 0.0) {
     soft_constraints_.push_back({type, constraint, w1, w2});
   }
 
-  // k番目のステージコスト
+  /// @brief Stage cost at step `k`. Default returns 0.
+  /// @param x state at stage k, shape (nx, 1).
+  /// @param u input at stage k, shape (nu, 1).
+  /// @param k stage index in [0, horizon).
   virtual casadi::MX stage_cost(casadi::MX x, casadi::MX u, size_t k) {
     (void)x;
     (void)u;
@@ -173,28 +247,37 @@ public:
     return 0;
   }
 
-  // 終端のコスト
+  /// @brief Terminal cost evaluated at `x_N`. Default returns 0.
   virtual casadi::MX terminal_cost(casadi::MX x) {
     (void)x;
     return 0;
   }
 
-  DynamicsType dynamics_type() const { return dyn_type_; }
-  size_t nx() const { return nx_; }
-  size_t nu() const { return nu_; }
-  size_t horizon() const { return horizon_; }
-  double dt() const { return dt_; }
+  DynamicsType dynamics_type() const { return dyn_type_; } ///< Discretization scheme.
+  size_t nx() const { return nx_; }                        ///< State dimension.
+  size_t nu() const { return nu_; }                        ///< Control dimension.
+  size_t horizon() const { return horizon_; }              ///< Number of stages N.
+  double dt() const { return dt_; }                        ///< Step size in seconds.
 
+  /// @brief Declare a runtime-tunable symbolic parameter that can be passed to @ref MPC::solve.
+  ///
+  /// Use this to inject reference trajectories, weights, obstacle positions, etc.
+  /// without rebuilding the solver. Update its numeric value via `solve(x0, {{name, dm}})`.
+  /// @param name unique identifier (used as the key in the DMDict passed to solve).
+  /// @param rows number of rows of the parameter matrix.
+  /// @param cols number of cols. Use `cols == horizon` for per-stage values
+  ///        (column k is consumed at stage k); otherwise the parameter is broadcast.
+  /// @return symbolic MX you can use inside @ref dynamics, @ref stage_cost, etc.
   casadi::MX parameter(std::string name, size_t rows, size_t cols) {
-    // std::string param_name = "p" + std::to_string(param_list_.size());
     auto param = casadi::MX::sym(name, rows, cols);
     param_list_[name] = {param, casadi::DM::zeros(rows, cols)};
     return param;
   }
 
-  // Helper function to define a reference trajectory parameter
-  // The trajectory should have shape (nx, horizon) where each column is the reference state at that
-  // horizon step
+  /// @brief Convenience wrapper of @ref parameter with shape `(nx, horizon)`.
+  ///
+  /// Each column is the reference state at the corresponding stage, suitable
+  /// for trajectory tracking inside `stage_cost`.
   casadi::MX reference_trajectory(std::string name = "x_ref") {
     return parameter(name, nx_, horizon_);
   }
@@ -243,8 +326,15 @@ private:
   friend class CompiledMPC;
 };
 
+/// @brief Runtime MPC solver. Builds a CasADi NLP from a @ref Problem and solves it on demand.
+///
+/// This is the simplest variant: the NLP is constructed once at construction
+/// time and solved at runtime using the chosen CasADi nlpsol backend. For
+/// faster iteration time after a startup cost, use @ref JITMPC; for
+/// build-time AOT compilation use @ref CompiledMPC.
 class MPC {
 public:
+  /// @brief Reasonable defaults for the IPOPT backend (silent, warm-start enabled).
   static casadi::Dict default_ipopt_config() {
     casadi::Dict config = {{"calc_lam_p", true},  {"calc_lam_x", true},
                            {"ipopt.sb", "yes"},   {"ipopt.print_level", 0},
@@ -253,6 +343,7 @@ public:
     return config;
   }
 
+  /// @brief Reasonable defaults for SQP method with the qpOASES inner QP solver.
   static casadi::Dict default_qpoases_config() {
     casadi::Dict config = {
         {"calc_lam_p", true},
@@ -268,6 +359,7 @@ public:
     return config;
   }
 
+  /// @brief Reasonable defaults for the FATROP backend (auto structure detection).
   static casadi::Dict default_fatrop_config() {
     casadi::Dict config = {
         {"calc_lam_p", true},      {"calc_lam_x", true},
@@ -280,6 +372,10 @@ public:
     return config;
   }
 
+  /// @brief Whether the chosen backend needs an `equality` flag vector in the config.
+  ///
+  /// FATROP with `structure_detection == "auto"` requires it, so the constructor
+  /// inserts it automatically when this returns true.
   static bool equality_required(const std::string &solver_name, const casadi::Dict &config) {
     if (solver_name == "fatrop") {
       auto it = config.find("structure_detection");
@@ -290,6 +386,15 @@ public:
     return false;
   }
 
+  /// @brief Build the NLP from `prob` and create the underlying nlpsol.
+  /// @param prob the problem to solve.
+  /// @param solver_name CasADi nlpsol backend name (e.g. "ipopt", "fatrop", "sqpmethod").
+  /// @param config nlpsol options. Two simple-casadi-mpc-specific keys are
+  ///        also recognised and consumed before being forwarded to CasADi:
+  ///        - `mapsum_stage_cost` (bool, default true): build the stage-cost
+  ///          sum via MapSum so AD stays loop-shaped.
+  ///        - `expand_inner_functions` (bool, default true): SX-expand
+  ///          per-stage F/L/G before mapping for faster JIT compilation.
   template <class T>
   MPC(std::shared_ptr<T> prob, std::string solver_name = "ipopt",
       casadi::Dict config = default_ipopt_config())
@@ -335,6 +440,16 @@ public:
     build_solver();
   }
 
+  /// @brief Solve the NLP at the current state and return the first optimal control.
+  ///
+  /// Warm-starts from the previous solve (`x`, `lam_x`, `lam_g` are cached
+  /// internally), so calling this repeatedly during closed-loop simulation
+  /// benefits from incremental convergence.
+  ///
+  /// @param x0 current measured state, shape (nx,).
+  /// @param new_param_list updates to parameters declared via @ref Problem::parameter.
+  ///        Keys are parameter names; values are `casadi::DM` of matching shape.
+  /// @return optimal control to apply now, `u_0`, shape (nu,).
   virtual Eigen::VectorXd solve(Eigen::VectorXd x0,
                                 casadi::DMDict new_param_list = casadi::DMDict()) {
     using namespace casadi;
@@ -378,9 +493,13 @@ public:
     return opt_u;
   }
 
+  /// @brief Symbolic NLP description `{x, f, g, p}` constructed from the Problem.
   casadi::MXDict casadi_prob() const { return casadi_prob_; }
+  /// @brief Backend name passed to CasADi `nlpsol`.
   const std::string &solver_name() const { return solver_name_; }
+  /// @brief Effective config forwarded to `nlpsol` (after consuming simple-casadi-mpc keys).
   casadi::Dict solver_config() const { return config_; }
+  /// @brief Per-constraint flags marking equality (`true`) vs inequality (`false`).
   std::vector<casadi_int> equality_flags() const {
     return std::vector<casadi_int>(equality_.begin(), equality_.end());
   }
@@ -763,10 +882,23 @@ protected:
 private:
 };
 
+/// @brief MPC variant that JIT-compiles the solver during construction.
+///
+/// Pays a one-time compile cost (cache it with ccache via `default_jit_options()`)
+/// in exchange for substantially faster per-iteration solve time. Behaves like
+/// @ref MPC otherwise.
 class JITMPC : public MPC {
 public:
-  // Default JIT compile options (compiler / flags / verbose) passed to CasADi.
-  // Override via the constructor's `jit_options` argument.
+  /// @brief Default JIT compile options (compiler / flags / verbose) passed to CasADi.
+  ///
+  /// The defaults are `ccache gcc`, `-O3 -march=native`, `verbose=false`.
+  /// Override individual entries before passing the dict to the constructor:
+  /// @code
+  /// auto opts = JITMPC::default_jit_options();
+  /// opts["compiler"] = "clang";
+  /// opts["flags"] = "-O2";
+  /// JITMPC mpc("my_prob", prob, "ipopt", config, opts);
+  /// @endcode
   static casadi::Dict default_jit_options() {
     return casadi::Dict{
         {"compiler", "ccache gcc"},
@@ -775,6 +907,13 @@ public:
     };
   }
 
+  /// @brief Build the NLP and JIT-compile its solver in one step.
+  /// @param prob_name unique identifier embedded in the JIT artifact name.
+  /// @param prob the @ref Problem to solve.
+  /// @param solver_name CasADi nlpsol backend name.
+  /// @param config nlpsol options (same semantics as @ref MPC::MPC).
+  /// @param jit_options inner CasADi `jit_options` dict; see @ref default_jit_options.
+  /// @param verbose if true, print progress to stdout while compiling.
   template <class T>
   JITMPC(const std::string &prob_name, std::shared_ptr<T> prob, std::string solver_name = "ipopt",
          casadi::Dict config = MPC::default_ipopt_config(),
@@ -790,6 +929,7 @@ public:
       std::cout << "Code generation completed." << std::endl;
   }
 
+  /// @copydoc MPC::solve
   Eigen::VectorXd solve(Eigen::VectorXd x0,
                         casadi::DMDict new_param_list = casadi::DMDict()) override {
     using namespace casadi;
@@ -855,13 +995,27 @@ private:
   casadi::Dict jit_options_;
 };
 
+/// @brief MPC variant that loads an externally-compiled solver shared library.
+///
+/// Use the CMake helper `add_simple_casadi_mpc_codegen` to generate and build
+/// the shared library at project build time, then pass the resulting
+/// @ref CompiledLibraryConfig (provided by a generated `_config.cpp`) here.
+/// Trades flexibility (solver backend and its options are baked in) for the
+/// best runtime startup and steady-state solve time.
 class CompiledMPC : public MPC {
 public:
+  /// @brief Locator for an AOT-compiled solver shared library.
+  ///
+  /// Populated by the generated `<export_solver_name>_config.cpp`; users do
+  /// not normally fill this struct by hand.
   struct CompiledLibraryConfig {
-    std::string export_solver_name;
-    std::string shared_library_path;
+    std::string export_solver_name;  ///< CasADi function name embedded in the shared library.
+    std::string shared_library_path; ///< Filesystem path to the `.so` / `.dylib` / `.dll`.
   };
 
+  /// @brief Load the prebuilt solver from `lib_config` and bind it to `prob`.
+  /// @param lib_config locator for the compiled solver, see @ref CompiledLibraryConfig.
+  /// @param prob the matching @ref Problem instance (used for shapes and parameters).
   template <class T>
   CompiledMPC(const CompiledLibraryConfig &lib_config, std::shared_ptr<T> prob)
       : MPC(prob), prob_(prob), lib_config_(lib_config) {
@@ -869,6 +1023,7 @@ public:
     load_compiled_solver();
   }
 
+  /// @copydoc MPC::solve
   Eigen::VectorXd solve(Eigen::VectorXd x0,
                         casadi::DMDict new_param_list = casadi::DMDict()) override {
     using namespace casadi;
@@ -911,6 +1066,17 @@ public:
     return opt_u;
   }
 
+  /// @brief Emit the C source for an AOT-compiled solver. Called from a codegen executable.
+  ///
+  /// The generated `<export_solver_name>.c` (and matching header) is compiled
+  /// into a shared library by the `add_simple_casadi_mpc_codegen` CMake helper.
+  ///
+  /// @tparam T the @ref Problem subclass to instantiate.
+  /// @param export_solver_name CasADi function name embedded in the generated source.
+  /// @param export_dir output directory for the generated files.
+  /// @param solver_name CasADi nlpsol backend baked into the compiled solver.
+  /// @param solver_config nlpsol options baked in (cannot be changed at runtime).
+  /// @param codegen_options forwarded to `casadi::CodeGenerator`.
   template <class T>
   static void generate_code(const std::string &export_solver_name, const std::string &export_dir,
                             const std::string &solver_name = "ipopt",
