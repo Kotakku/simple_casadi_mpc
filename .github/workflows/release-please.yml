@@ -17,3 +17,11 @@ jobs:
         with:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
+          # Use a Personal Access Token so commits / PRs created by this
+          # workflow trigger downstream workflows (build, Validate PR title,
+          # docs). The default GITHUB_TOKEN intentionally suppresses those to
+          # avoid recursion, which would leave required status checks unrun on
+          # release PRs. Falls back to the default token if the secret is not
+          # set, so the workflow keeps working out-of-the-box (just without
+          # downstream CI on release PRs).
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN || github.token }}
