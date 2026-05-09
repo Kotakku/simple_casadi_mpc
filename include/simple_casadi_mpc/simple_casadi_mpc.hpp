@@ -12,20 +12,22 @@
 namespace simple_casadi_mpc {
 
 /// @brief Forward Euler one-step integrator: `x_{k+1} = x + dt * f(x, u)`.
-/// @tparam T scalar type (e.g. casadi::MX for symbolic build, Eigen::VectorXd for numeric eval).
+/// @tparam T  state / value type (e.g. `casadi::MX` for symbolic build, `Eigen::VectorXd` for
+/// numeric eval).
+/// @tparam DT step size type — `double` for numeric, `casadi::MX` to plug in symbolic per-stage dt.
 /// @param dt step size.
 /// @param x state at step k.
 /// @param u input applied between k and k+1.
 /// @param dynamics continuous-time dynamics function `f(x, u)` returning dx/dt.
-template <class T>
-static T integrate_dynamics_forward_euler(double dt, T x, T u, std::function<T(T, T)> dynamics) {
+template <class T, class DT>
+static T integrate_dynamics_forward_euler(DT dt, T x, T u, std::function<T(T, T)> dynamics) {
   return x + dt * dynamics(x, u);
 }
 
 /// @brief Modified (Heun) Euler one-step integrator: 2nd-order explicit.
 /// @copydetails integrate_dynamics_forward_euler
-template <class T>
-static T integrate_dynamics_modified_euler(double dt, T x, T u, std::function<T(T, T)> dynamics) {
+template <class T, class DT>
+static T integrate_dynamics_modified_euler(DT dt, T x, T u, std::function<T(T, T)> dynamics) {
   T k1 = dynamics(x, u);
   T k2 = dynamics(x + dt * k1, u);
 
@@ -34,8 +36,8 @@ static T integrate_dynamics_modified_euler(double dt, T x, T u, std::function<T(
 
 /// @brief Classical 4-stage Runge-Kutta one-step integrator.
 /// @copydetails integrate_dynamics_forward_euler
-template <class T>
-static T integrate_dynamics_rk4(double dt, T x, T u, std::function<T(T, T)> dynamics) {
+template <class T, class DT>
+static T integrate_dynamics_rk4(DT dt, T x, T u, std::function<T(T, T)> dynamics) {
   T k1 = dynamics(x, u);
   T k2 = dynamics(x + dt / 2 * k1, u);
   T k3 = dynamics(x + dt / 2 * k2, u);
@@ -68,14 +70,24 @@ public:
     Inequality ///< `g(x, u) <= 0`.
   };
 
-  /// @brief Construct a problem with a fixed prediction horizon.
+  /// @brief Construct a problem with a fixed prediction horizon and uniform time step.
   /// @param dyn_type discretization scheme used by @ref dynamics.
   /// @param _nx state dimension.
   /// @param _nu control dimension.
   /// @param _horizon number of stages in the optimization (N).
-  /// @param _dt time step in seconds (used by continuous dynamics).
+  /// @param _dt uniform time step in seconds (used by continuous dynamics).
   Problem(DynamicsType dyn_type, size_t _nx, size_t _nu, size_t _horizon, double _dt)
-      : dyn_type_(dyn_type), nx_(_nx), nu_(_nu), horizon_(_horizon), dt_(_dt) {
+      : Problem(dyn_type, _nx, _nu, _horizon, std::vector<double>(_horizon, _dt)) {}
+
+  /// @brief Construct a problem with a per-stage (variable) time step.
+  ///
+  /// Each entry of `_dts` is the integration step \f$\Delta t_k\f$ used between
+  /// stage \f$k\f$ and \f$k+1\f$. Use this overload when the prediction
+  /// horizon spans non-uniform time intervals (e.g. coarse-to-fine schedules).
+  /// @param _dts per-stage time steps, must have size == `_horizon`.
+  Problem(DynamicsType dyn_type, size_t _nx, size_t _nu, size_t _horizon, std::vector<double> _dts)
+      : dyn_type_(dyn_type), nx_(_nx), nu_(_nu), horizon_(_horizon), dts_(std::move(_dts)) {
+    assert(dts_.size() == horizon_ && "dts.size() must equal horizon");
     double inf = std::numeric_limits<double>::infinity();
 
     Eigen::VectorXd uub = Eigen::VectorXd::Constant(nu(), inf);
@@ -260,7 +272,27 @@ public:
   size_t nx() const { return nx_; }                        ///< State dimension.
   size_t nu() const { return nu_; }                        ///< Control dimension.
   size_t horizon() const { return horizon_; }              ///< Number of stages N.
-  double dt() const { return dt_; }                        ///< Step size in seconds.
+
+  /// @brief Step size at stage 0 (or the uniform step for problems built with the
+  ///        single-`dt` constructor). Use @ref dt(size_t) for per-stage values.
+  double dt() const { return dts_.empty() ? 0.0 : dts_.front(); }
+
+  /// @brief Per-stage time step \f$\Delta t_k\f$.
+  double dt(size_t k) const { return dts_.at(k); }
+
+  /// @brief Read-only view of all per-stage time steps, length `horizon()`.
+  const std::vector<double> &dts() const { return dts_; }
+
+  /// @brief True iff every stage has the same `dt`.
+  bool has_uniform_dt() const {
+    if (dts_.size() <= 1)
+      return true;
+    for (size_t i = 1; i < dts_.size(); ++i) {
+      if (dts_[i] != dts_[0])
+        return false;
+    }
+    return true;
+  }
 
   /// @brief Declare a runtime-tunable symbolic parameter that can be passed to @ref MPC::solve.
   ///
@@ -300,7 +332,7 @@ private:
   const size_t nx_;
   const size_t nu_;
   const size_t horizon_;
-  const double dt_;
+  const std::vector<double> dts_;
 
   using ConstraintFunc = std::function<casadi::MX(casadi::MX, casadi::MX)>;
   std::vector<ConstraintFunc> equality_constrinats_;
@@ -558,31 +590,44 @@ protected:
     // 2. CasADi Functions for one step (unchanged)
     // std::function<MX(MX, MX)> dynamics_func;
     // ... same as your code ...
+    // For variable per-stage dt, dt_k_sym is plumbed through F as an extra
+    // input and bound to a (1, N) row of dts when calling F.map(N).
+    const bool variable_dt =
+        !prob_->has_uniform_dt() && prob_->dynamics_type() != Problem::DynamicsType::Discretized;
+    MX dt_k_sym = MX::sym("dt_k", 1, 1);
     MX x_next;
     switch (prob_->dynamics_type()) {
     case Problem::DynamicsType::ContinuesForwardEuler: {
       std::function<casadi::MX(casadi::MX, casadi::MX)> con_dyn =
           std::bind(&Problem::dynamics, prob_.get(), std::placeholders::_1, std::placeholders::_2);
-      x_next = integrate_dynamics_forward_euler<casadi::MX>(prob_->dt(), x_k, u_k, con_dyn);
+      x_next = variable_dt
+                   ? integrate_dynamics_forward_euler<casadi::MX>(dt_k_sym, x_k, u_k, con_dyn)
+                   : integrate_dynamics_forward_euler<casadi::MX>(prob_->dt(), x_k, u_k, con_dyn);
       break;
     }
     case Problem::DynamicsType::ContinuesModifiedEuler: {
       std::function<casadi::MX(casadi::MX, casadi::MX)> con_dyn =
           std::bind(&Problem::dynamics, prob_.get(), std::placeholders::_1, std::placeholders::_2);
-      x_next = integrate_dynamics_modified_euler<casadi::MX>(prob_->dt(), x_k, u_k, con_dyn);
+      x_next = variable_dt
+                   ? integrate_dynamics_modified_euler<casadi::MX>(dt_k_sym, x_k, u_k, con_dyn)
+                   : integrate_dynamics_modified_euler<casadi::MX>(prob_->dt(), x_k, u_k, con_dyn);
       break;
     }
     case Problem::DynamicsType::ContinuesRK4: {
       std::function<casadi::MX(casadi::MX, casadi::MX)> con_dyn =
           std::bind(&Problem::dynamics, prob_.get(), std::placeholders::_1, std::placeholders::_2);
-      x_next = integrate_dynamics_rk4<casadi::MX>(prob_->dt(), x_k, u_k, con_dyn);
+      x_next = variable_dt ? integrate_dynamics_rk4<casadi::MX>(dt_k_sym, x_k, u_k, con_dyn)
+                           : integrate_dynamics_rk4<casadi::MX>(prob_->dt(), x_k, u_k, con_dyn);
       break;
     }
     case Problem::DynamicsType::Discretized:
       x_next = prob_->dynamics(x_k, u_k);
       break;
     }
-    Function F("F_dynamics", {x_k, u_k}, {x_next});
+    std::vector<MX> F_inputs = {x_k, u_k};
+    if (variable_dt)
+      F_inputs.push_back(dt_k_sym);
+    Function F("F_dynamics", F_inputs, {x_next});
     if (expand_inner_functions)
       F = F.expand(F.name(), {{"cse", true}});
 
@@ -651,7 +696,12 @@ protected:
       G_constraints = G_constraints.expand(G_constraints.name(), {{"cse", true}});
 
     // 3. Map application
-    MX X_next_cal = F.map(N)(std::vector<MX>{X(Slice(), Slice(0, N)), U})[0];
+    std::vector<MX> F_map_inputs = {X(Slice(), Slice(0, N)), U};
+    if (variable_dt) {
+      // (1, N) row of per-stage dts, fed as the third input to F across stages.
+      F_map_inputs.push_back(DM(prob_->dts()).T());
+    }
+    MX X_next_cal = F.map(N)(F_map_inputs)[0];
 
     // Stage cost: when mapsum_stage_cost is set, replace each per-stage param
     // p (shape rows×N) by repmat(col_sym, 1, N) inside the user's stage_cost
