@@ -6,6 +6,7 @@
 Lightweight C++ utilities for building and solving MPC problems with CasADi. Includes runtime MPC, JIT-compiled MPC, and CMake-integrated compiled MPC solvers.
 
 ## Dependencies
+
 - CasADi ([install script](install_casadi.sh))
 - IPOPT or FATROP (optional solver backends)
 - Eigen3
@@ -14,6 +15,7 @@ Lightweight C++ utilities for building and solving MPC problems with CasADi. Inc
 - doxygen (for docs; uses `doc/doxygen-awesome-css` submodule)
 
 ## Build & install
+
 ```bash
 mkdir build
 cd build
@@ -23,12 +25,14 @@ sudo make install
 ```
 
 ## CMake usage
+
 ```cmake
 find_package(simple_casadi_mpc REQUIRED)
 target_link_libraries(my_target PRIVATE simple_casadi_mpc)
 ```
 
 ## Solver overview
+
 - `MPC`: simplest runtime solver; easiest for quick validation.
 - `JITMPC`: JIT-compiles on the first solve for faster subsequent runs; expect a startup lag (cacheable with ccache).
 - `CompiledMPC`: builds solver code at CMake time; best steady-state speed with no runtime lag.
@@ -36,6 +40,7 @@ target_link_libraries(my_target PRIVATE simple_casadi_mpc)
 Limitation for `CompiledMPC`: the solver backend (IPOPT/FATROP/...) and its parameters are fixed at build time.
 
 ### Usage for CompiledMPC via CMake
+
 ```cmake
 find_package(simple_casadi_mpc REQUIRED)
 
@@ -60,7 +65,9 @@ target_link_libraries(<your_exe> PRIVATE
 ```
 
 ## Examples
+
 ### double_integrator_mpc_example
+
 Drives a frictionless point mass to the origin (position and velocity feedback).
 
 From: [example/double_integrator_mpc_example.cpp](https://github.com/Kotakku/simple_casadi_mpc/blob/main/example/double_integrator_mpc_example.cpp)
@@ -68,18 +75,20 @@ From: [example/double_integrator_mpc_example.cpp](https://github.com/Kotakku/sim
 ![](gallery/example/double_integrator_mpc_example.png)
 
 ### cartpole_mpc_example
+
 Cartpole swing-up and balance (problem setup from the linked gists).
 
 From: [example/cartpole_mpc_example.cpp](https://github.com/Kotakku/simple_casadi_mpc/blob/main/example/cartpole_mpc_example.cpp)
 
-https://gist.github.com/mayataka/ef178130d52b5b06d4dd8bb2c8384c54
-https://gist.github.com/mayataka/bc08faa63a94d8b48ceba77cc79c7ccc
+<https://gist.github.com/mayataka/ef178130d52b5b06d4dd8bb2c8384c54>
+<https://gist.github.com/mayataka/bc08faa63a94d8b48ceba77cc79c7ccc>
 
 ![](gallery/example/cartpole_mpc_example.png)
 
 ![](gallery/example/cartpole.gif)
 
 ### inverted_pendulum_mpc_example
+
 Rotary inverted pendulum swing-up with torque limits that force a multi-phase motion.
 
 From: [example/inverted_pendulum_mpc_example.cpp](https://github.com/Kotakku/simple_casadi_mpc/blob/main/example/inverted_pendulum_mpc_example.cpp)
@@ -89,6 +98,7 @@ From: [example/inverted_pendulum_mpc_example.cpp](https://github.com/Kotakku/sim
 ![](gallery/example/inverted_pendulum.gif)
 
 ### diff_drive_mpc_example
+
 Differential-drive robot from top-left to bottom-right while avoiding circular obstacles and respecting velocity limits.
 
 From: [example/diff_drive_mpc_example.cpp](https://github.com/Kotakku/simple_casadi_mpc/blob/main/example/diff_drive_mpc_example.cpp)
@@ -98,18 +108,22 @@ From: [example/diff_drive_mpc_example.cpp](https://github.com/Kotakku/simple_cas
 ![](gallery/example/diff_drive.gif)
 
 ### diff_drive_soft_constraint_example
+
 Same diff-drive setup with a single circular obstacle, comparing `add_constraint` (hard) and `soft_add_constraint` (soft) for the obstacle. With a large penalty weight the soft formulation matches the hard one; with a small weight the optimizer prefers cutting through the obstacle if the tracking gain dominates the violation cost.
 
 From: [example/diff_drive_soft_constraint_example.cpp](https://github.com/Kotakku/simple_casadi_mpc/blob/main/example/diff_drive_soft_constraint_example.cpp)
 
 ## Soft constraints
+
 `Problem::soft_add_constraint(type, func, w1, w2)` introduces non-negative per-stage slack variables `s ≥ 0` and adds `w1 · 1ᵀs + 0.5 · w2 · sᵀs` to the cost.
+
 - Inequality `g(x,u) ≤ 0` becomes `g − s ≤ 0`.
 - Equality `h(x,u) = 0` becomes `|h| ≤ s`, encoded as `h − s ≤ 0` and `−h − s ≤ 0`.
 
 The default `w2 = 0` gives a pure L1 (exact) penalty; setting `w2 > 0` adds an L2 (smooth) term. Large `w1` recovers hard-constraint behavior; small `w1` allows the optimizer to trade violation against the rest of the cost. Hard `add_constraint` and soft `soft_add_constraint` can be mixed on the same problem.
 
 ## Benchmarks
+
 Runtime comparisons for cartpole MPC solver variants.
 
 ![](gallery/benchmark/bench_cartpole_mpc_solve_time_comparison.png)
@@ -118,15 +132,19 @@ Runtime comparisons for cartpole MPC solver variants.
 
 ![](gallery/benchmark/bench_cartpole_jit_vs_compiled_mpc_solve_time_comparison.png)
 
-
 ## Documentation
-1) Fetch submodules:
+
+1. Fetch submodules:
+
 ```bash
 git submodule update --init --recursive
 ```
-2) Generate docs:
+
+1. Generate docs:
+
 ```bash
 cd doc
 doxygen Doxyfile
 ```
-3) Open `doc/build/html/index.html`.
+
+1. Open `doc/build/html/index.html`.
