@@ -194,8 +194,11 @@ Public Types</h2></td></tr>
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="pub-methods" name="pub-methods"></a>
 Public Member Functions</h2></td></tr>
 <tr class="memitem:a542614fa5717c152bd2b8141981a11f0" id="r_a542614fa5717c152bd2b8141981a11f0"><td class="memItemLeft" align="right" valign="top">&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a542614fa5717c152bd2b8141981a11f0">Problem</a> (<a class="el" href="#a63140d7a90947cd7c477b8b853b15da0">DynamicsType</a> dyn_type, size_t _nx, size_t _nu, size_t _horizon, double _dt)</td></tr>
-<tr class="memdesc:a542614fa5717c152bd2b8141981a11f0"><td class="mdescLeft">&#160;</td><td class="mdescRight">Construct a problem with a fixed prediction horizon.  <br /></td></tr>
+<tr class="memdesc:a542614fa5717c152bd2b8141981a11f0"><td class="mdescLeft">&#160;</td><td class="mdescRight">Construct a problem with a fixed prediction horizon and uniform time step.  <br /></td></tr>
 <tr class="separator:a542614fa5717c152bd2b8141981a11f0"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a870d5806d8fb0565a84e903c44b7770d" id="r_a870d5806d8fb0565a84e903c44b7770d"><td class="memItemLeft" align="right" valign="top">&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a870d5806d8fb0565a84e903c44b7770d">Problem</a> (<a class="el" href="#a63140d7a90947cd7c477b8b853b15da0">DynamicsType</a> dyn_type, size_t _nx, size_t _nu, size_t _horizon, std::vector&lt; double &gt; _dts)</td></tr>
+<tr class="memdesc:a870d5806d8fb0565a84e903c44b7770d"><td class="mdescLeft">&#160;</td><td class="mdescRight">Construct a problem with a per-stage (variable) time step.  <br /></td></tr>
+<tr class="separator:a870d5806d8fb0565a84e903c44b7770d"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:afc334373a405d7e6218bff7be52e345e" id="r_afc334373a405d7e6218bff7be52e345e"><td class="memItemLeft" align="right" valign="top">virtual casadi::MX&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#afc334373a405d7e6218bff7be52e345e">dynamics</a> (casadi::MX x, casadi::MX u)=0</td></tr>
 <tr class="memdesc:afc334373a405d7e6218bff7be52e345e"><td class="mdescLeft">&#160;</td><td class="mdescRight">Symbolic dynamics, must be overridden by the user.  <br /></td></tr>
 <tr class="separator:afc334373a405d7e6218bff7be52e345e"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -263,8 +266,20 @@ size_t&#160;</td><td class="memItemRight" valign="bottom"><b>horizon</b> () cons
 <tr class="separator:ad7ea65e2666a394e96bea13886ad1a8f"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a88c733234eb769c6ff28944bcdd04bc2" id="r_a88c733234eb769c6ff28944bcdd04bc2"><td class="memItemLeft" align="right" valign="top"><a id="a88c733234eb769c6ff28944bcdd04bc2" name="a88c733234eb769c6ff28944bcdd04bc2"></a>
 double&#160;</td><td class="memItemRight" valign="bottom"><b>dt</b> () const</td></tr>
-<tr class="memdesc:a88c733234eb769c6ff28944bcdd04bc2"><td class="mdescLeft">&#160;</td><td class="mdescRight">Step size in seconds. <br /></td></tr>
+<tr class="memdesc:a88c733234eb769c6ff28944bcdd04bc2"><td class="mdescLeft">&#160;</td><td class="mdescRight">Step size at stage 0 (or the uniform step for problems built with the single-<code>dt</code> constructor). Use dt(size_t) for per-stage values. <br /></td></tr>
 <tr class="separator:a88c733234eb769c6ff28944bcdd04bc2"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a750cf6a4faaf7085682cc4290d2e58c4" id="r_a750cf6a4faaf7085682cc4290d2e58c4"><td class="memItemLeft" align="right" valign="top"><a id="a750cf6a4faaf7085682cc4290d2e58c4" name="a750cf6a4faaf7085682cc4290d2e58c4"></a>
+double&#160;</td><td class="memItemRight" valign="bottom"><b>dt</b> (size_t k) const</td></tr>
+<tr class="memdesc:a750cf6a4faaf7085682cc4290d2e58c4"><td class="mdescLeft">&#160;</td><td class="mdescRight">Per-stage time step \(\Delta t_k\). <br /></td></tr>
+<tr class="separator:a750cf6a4faaf7085682cc4290d2e58c4"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a5744422cdbc7029a46a1c15daabf4322" id="r_a5744422cdbc7029a46a1c15daabf4322"><td class="memItemLeft" align="right" valign="top"><a id="a5744422cdbc7029a46a1c15daabf4322" name="a5744422cdbc7029a46a1c15daabf4322"></a>
+const std::vector&lt; double &gt; &amp;&#160;</td><td class="memItemRight" valign="bottom"><b>dts</b> () const</td></tr>
+<tr class="memdesc:a5744422cdbc7029a46a1c15daabf4322"><td class="mdescLeft">&#160;</td><td class="mdescRight">Read-only view of all per-stage time steps, length <code><a class="el" href="#ad7ea65e2666a394e96bea13886ad1a8f" title="Number of stages N.">horizon()</a></code>. <br /></td></tr>
+<tr class="separator:a5744422cdbc7029a46a1c15daabf4322"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:af0c351a02e6be128f449cda24ee849b1" id="r_af0c351a02e6be128f449cda24ee849b1"><td class="memItemLeft" align="right" valign="top"><a id="af0c351a02e6be128f449cda24ee849b1" name="af0c351a02e6be128f449cda24ee849b1"></a>
+bool&#160;</td><td class="memItemRight" valign="bottom"><b>has_uniform_dt</b> () const</td></tr>
+<tr class="memdesc:af0c351a02e6be128f449cda24ee849b1"><td class="mdescLeft">&#160;</td><td class="mdescRight">True iff every stage has the same <code>dt</code>. <br /></td></tr>
+<tr class="separator:af0c351a02e6be128f449cda24ee849b1"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a324c15744919da7840faba75ccff3e35" id="r_a324c15744919da7840faba75ccff3e35"><td class="memItemLeft" align="right" valign="top">casadi::MX&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a324c15744919da7840faba75ccff3e35">parameter</a> (std::string name, size_t rows, size_t cols)</td></tr>
 <tr class="memdesc:a324c15744919da7840faba75ccff3e35"><td class="mdescLeft">&#160;</td><td class="mdescRight">Declare a runtime-tunable symbolic parameter that can be passed to <a class="el" href="classsimple__casadi__mpc_1_1MPC.html#a54c984a30813dc477d42924dc0faeada">MPC::solve</a>.  <br /></td></tr>
 <tr class="separator:a324c15744919da7840faba75ccff3e35"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -355,7 +370,7 @@ class&#160;</td><td class="memItemRight" valign="bottom"><b>CompiledMPC</b></td>
 </div>
 <h2 class="groupheader">Constructor &amp; Destructor Documentation</h2>
 <a id="a542614fa5717c152bd2b8141981a11f0" name="a542614fa5717c152bd2b8141981a11f0"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a542614fa5717c152bd2b8141981a11f0">&#9670;&#160;</a></span>Problem()</h2>
+<h2 class="memtitle"><span class="permalink"><a href="#a542614fa5717c152bd2b8141981a11f0">&#9670;&#160;</a></span>Problem() <span class="overload">[1/2]</span></h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -396,14 +411,66 @@ class&#160;</td><td class="memItemRight" valign="bottom"><b>CompiledMPC</b></td>
 </table>
 </div><div class="memdoc">
 
-<p>Construct a problem with a fixed prediction horizon. </p>
+<p>Construct a problem with a fixed prediction horizon and uniform time step. </p>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
     <tr><td class="paramname">dyn_type</td><td>discretization scheme used by <a class="el" href="#afc334373a405d7e6218bff7be52e345e">dynamics</a>. </td></tr>
     <tr><td class="paramname">_nx</td><td>state dimension. </td></tr>
     <tr><td class="paramname">_nu</td><td>control dimension. </td></tr>
     <tr><td class="paramname">_horizon</td><td>number of stages in the optimization (N). </td></tr>
-    <tr><td class="paramname">_dt</td><td>time step in seconds (used by continuous dynamics). </td></tr>
+    <tr><td class="paramname">_dt</td><td>uniform time step in seconds (used by continuous dynamics). </td></tr>
+  </table>
+  </dd>
+</dl>
+
+</div>
+</div>
+<a id="a870d5806d8fb0565a84e903c44b7770d" name="a870d5806d8fb0565a84e903c44b7770d"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a870d5806d8fb0565a84e903c44b7770d">&#9670;&#160;</a></span>Problem() <span class="overload">[2/2]</span></h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">simple_casadi_mpc::Problem::Problem </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="#a63140d7a90947cd7c477b8b853b15da0">DynamicsType</a></td>          <td class="paramname"><span class="paramname"><em>dyn_type</em>, </span></td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t</td>          <td class="paramname"><span class="paramname"><em>_nx</em>, </span></td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t</td>          <td class="paramname"><span class="paramname"><em>_nu</em>, </span></td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t</td>          <td class="paramname"><span class="paramname"><em>_horizon</em>, </span></td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">std::vector&lt; double &gt;</td>          <td class="paramname"><span class="paramname"><em>_dts</em></span>&#160;)</td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">inline</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Construct a problem with a per-stage (variable) time step. </p>
+<p>Each entry of <code>_dts</code> is the integration step \(\Delta t_k\) used between stage \(k\) and \(k+1\). Use this overload when the prediction horizon spans non-uniform time intervals (e.g. coarse-to-fine schedules). </p><dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">_dts</td><td>per-stage time steps, must have size == <code>_horizon</code>. </td></tr>
   </table>
   </dd>
 </dl>

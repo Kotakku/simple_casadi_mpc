@@ -9,11 +9,12 @@ var searchData=
   ['diff_5fdrive_5fmpc_5fexample_6',['diff_drive_mpc_example',['../index.html#autotoc_md14',1,'']]],
   ['diff_5fdrive_5fsoft_5fconstraint_5fexample_7',['diff_drive_soft_constraint_example',['../index.html#autotoc_md15',1,'']]],
   ['discretized_8',['Discretized',['../classsimple__casadi__mpc_1_1Problem.html#a63140d7a90947cd7c477b8b853b15da0a23acdb14f483e7c411cf432abb212e9b',1,'simple_casadi_mpc::Problem']]],
-  ['documentation_9',['Documentation',['../index.html#autotoc_md24',1,'']]],
+  ['documentation_9',['Documentation',['../index.html#autotoc_md25',1,'']]],
   ['double_5fintegrator_5fmpc_5fexample_10',['double_integrator_mpc_example',['../index.html#autotoc_md11',1,'']]],
-  ['dt_11',['dt',['../classsimple__casadi__mpc_1_1Problem.html#a88c733234eb769c6ff28944bcdd04bc2',1,'simple_casadi_mpc::Problem']]],
-  ['dynamics_12',['dynamics',['../classsimple__casadi__mpc_1_1Problem.html#afc334373a405d7e6218bff7be52e345e',1,'simple_casadi_mpc::Problem']]],
-  ['dynamics_5feval_13',['dynamics_eval',['../classsimple__casadi__mpc_1_1Problem.html#a37dd7ef94dad6fef274298f72f9fc658',1,'simple_casadi_mpc::Problem']]],
-  ['dynamics_5ftype_14',['dynamics_type',['../classsimple__casadi__mpc_1_1Problem.html#a29eaa716f93ea93a1c1672f5a58c34a0',1,'simple_casadi_mpc::Problem']]],
-  ['dynamicstype_15',['DynamicsType',['../classsimple__casadi__mpc_1_1Problem.html#a63140d7a90947cd7c477b8b853b15da0',1,'simple_casadi_mpc::Problem']]]
+  ['dt_11',['dt',['../classsimple__casadi__mpc_1_1Problem.html#a88c733234eb769c6ff28944bcdd04bc2',1,'simple_casadi_mpc::Problem::dt() const'],['../classsimple__casadi__mpc_1_1Problem.html#a750cf6a4faaf7085682cc4290d2e58c4',1,'simple_casadi_mpc::Problem::dt(size_t k) const']]],
+  ['dts_12',['dts',['../classsimple__casadi__mpc_1_1Problem.html#a5744422cdbc7029a46a1c15daabf4322',1,'simple_casadi_mpc::Problem']]],
+  ['dynamics_13',['dynamics',['../classsimple__casadi__mpc_1_1Problem.html#afc334373a405d7e6218bff7be52e345e',1,'simple_casadi_mpc::Problem']]],
+  ['dynamics_5feval_14',['dynamics_eval',['../classsimple__casadi__mpc_1_1Problem.html#a37dd7ef94dad6fef274298f72f9fc658',1,'simple_casadi_mpc::Problem']]],
+  ['dynamics_5ftype_15',['dynamics_type',['../classsimple__casadi__mpc_1_1Problem.html#a29eaa716f93ea93a1c1672f5a58c34a0',1,'simple_casadi_mpc::Problem']]],
+  ['dynamicstype_16',['DynamicsType',['../classsimple__casadi__mpc_1_1Problem.html#a63140d7a90947cd7c477b8b853b15da0',1,'simple_casadi_mpc::Problem']]]
 ];

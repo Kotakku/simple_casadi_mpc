@@ -48,10 +48,11 @@ var NAVTREE =
       [ "Customizing JIT compile options", "index.html#autotoc_md19", null ],
       [ "Runtime-tunable parameters", "index.html#autotoc_md20", null ],
       [ "Performance knobs (MPC / JITMPC config)", "index.html#autotoc_md21", null ],
-      [ "Warm starting", "index.html#autotoc_md22", null ]
+      [ "Variable time step", "index.html#autotoc_md22", null ],
+      [ "Warm starting", "index.html#autotoc_md23", null ]
     ] ],
-    [ "Benchmarks", "index.html#autotoc_md23", null ],
-    [ "Documentation", "index.html#autotoc_md24", null ],
+    [ "Benchmarks", "index.html#autotoc_md24", null ],
+    [ "Documentation", "index.html#autotoc_md25", null ],
     [ "Namespaces", "namespaces.html", [
       [ "Namespace List", "namespaces.html", "namespaces_dup" ],
       [ "Namespace Members", "namespacemembers.html", [

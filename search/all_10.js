@@ -16,5 +16,6 @@ var searchData=
   ['solver_5fconfig_13',['solver_config',['../classsimple__casadi__mpc_1_1MPC.html#a2735d4ce83c8f218594e73dd43a9a656',1,'simple_casadi_mpc::MPC']]],
   ['solver_5fname_14',['solver_name',['../classsimple__casadi__mpc_1_1MPC.html#af2980dbeb4200165c44138fcd5e96604',1,'simple_casadi_mpc::MPC']]],
   ['stage_5fcost_15',['stage_cost',['../classsimple__casadi__mpc_1_1Problem.html#a8bc22c81d3a5a90943917b256299576f',1,'simple_casadi_mpc::Problem']]],
-  ['starting_16',['Warm starting',['../index.html#autotoc_md22',1,'']]]
+  ['starting_16',['Warm starting',['../index.html#autotoc_md23',1,'']]],
+  ['step_17',['Variable time step',['../index.html#autotoc_md22',1,'']]]
 ];
