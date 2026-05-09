@@ -238,9 +238,15 @@ void&#160;</td><td class="memItemRight" valign="bottom"><b>set_state_upper_bound
 <tr class="memitem:a48bd6a0c0fb320ccce5feec458fd25c5" id="r_a48bd6a0c0fb320ccce5feec458fd25c5"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a48bd6a0c0fb320ccce5feec458fd25c5">add_constraint</a> (<a class="el" href="#a52f49c0322fba7498c08b9c1238fd2a7">ConstraintType</a> type, std::function&lt; casadi::MX(casadi::MX, casadi::MX)&gt; constrinat)</td></tr>
 <tr class="memdesc:a48bd6a0c0fb320ccce5feec458fd25c5"><td class="mdescLeft">&#160;</td><td class="mdescRight">Add a hard path constraint applied at every stage.  <br /></td></tr>
 <tr class="separator:a48bd6a0c0fb320ccce5feec458fd25c5"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a1b2ca0ed9f010a6818f5f218235e0da4" id="r_a1b2ca0ed9f010a6818f5f218235e0da4"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a1b2ca0ed9f010a6818f5f218235e0da4">add_constraint_at</a> (<a class="el" href="#a52f49c0322fba7498c08b9c1238fd2a7">ConstraintType</a> type, std::function&lt; casadi::MX(casadi::MX, casadi::MX)&gt; constraint, int start, int end=-1)</td></tr>
+<tr class="memdesc:a1b2ca0ed9f010a6818f5f218235e0da4"><td class="mdescLeft">&#160;</td><td class="mdescRight">Add a hard path constraint applied only at the specified stage range.  <br /></td></tr>
+<tr class="separator:a1b2ca0ed9f010a6818f5f218235e0da4"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a2858872818fbefe936d96c6b2a6a1c96" id="r_a2858872818fbefe936d96c6b2a6a1c96"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a2858872818fbefe936d96c6b2a6a1c96">add_soft_constraint</a> (<a class="el" href="#a52f49c0322fba7498c08b9c1238fd2a7">ConstraintType</a> type, std::function&lt; casadi::MX(casadi::MX, casadi::MX)&gt; constraint, double w1=1e3, double w2=0.0)</td></tr>
 <tr class="memdesc:a2858872818fbefe936d96c6b2a6a1c96"><td class="mdescLeft">&#160;</td><td class="mdescRight">Add a soft path constraint with per-stage non-negative slack.  <br /></td></tr>
 <tr class="separator:a2858872818fbefe936d96c6b2a6a1c96"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a4221d17a3fdd0845c6e6daa929af7ad2" id="r_a4221d17a3fdd0845c6e6daa929af7ad2"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a4221d17a3fdd0845c6e6daa929af7ad2">add_soft_constraint_at</a> (<a class="el" href="#a52f49c0322fba7498c08b9c1238fd2a7">ConstraintType</a> type, std::function&lt; casadi::MX(casadi::MX, casadi::MX)&gt; constraint, double w1, double w2, int start, int end=-1)</td></tr>
+<tr class="memdesc:a4221d17a3fdd0845c6e6daa929af7ad2"><td class="mdescLeft">&#160;</td><td class="mdescRight">Add a soft path constraint applied only at the specified stage range.  <br /></td></tr>
+<tr class="separator:a4221d17a3fdd0845c6e6daa929af7ad2"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a8bc22c81d3a5a90943917b256299576f" id="r_a8bc22c81d3a5a90943917b256299576f"><td class="memItemLeft" align="right" valign="top">virtual casadi::MX&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a8bc22c81d3a5a90943917b256299576f">stage_cost</a> (casadi::MX x, casadi::MX u, size_t k)</td></tr>
 <tr class="memdesc:a8bc22c81d3a5a90943917b256299576f"><td class="mdescLeft">&#160;</td><td class="mdescRight">Stage cost \(L(x_k, u_k, k;\,p)\) at step \(k\). Default returns 0.  <br /></td></tr>
 <tr class="separator:a8bc22c81d3a5a90943917b256299576f"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -470,6 +476,10 @@ class&#160;</td><td class="memItemRight" valign="bottom"><b>CompiledMPC</b></td>
 <p>Construct a problem with a per-stage (variable) time step. </p>
 <p>Each entry of <code>_dts</code> is the integration step \(\Delta t_k\) used between stage \(k\) and \(k+1\). Use this overload when the prediction horizon spans non-uniform time intervals (e.g. coarse-to-fine schedules). </p><dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
+    <tr><td class="paramname">dyn_type</td><td>discretization scheme used by <a class="el" href="#afc334373a405d7e6218bff7be52e345e">dynamics</a>. </td></tr>
+    <tr><td class="paramname">_nx</td><td>state dimension. </td></tr>
+    <tr><td class="paramname">_nu</td><td>control dimension. </td></tr>
+    <tr><td class="paramname">_horizon</td><td>number of stages in the optimization (N). </td></tr>
     <tr><td class="paramname">_dts</td><td>per-stage time steps, must have size == <code>_horizon</code>. </td></tr>
   </table>
   </dd>
@@ -513,6 +523,53 @@ class&#160;</td><td class="memItemRight" valign="bottom"><b>CompiledMPC</b></td>
   </table>
   </dd>
 </dl>
+
+</div>
+</div>
+<a id="a1b2ca0ed9f010a6818f5f218235e0da4" name="a1b2ca0ed9f010a6818f5f218235e0da4"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a1b2ca0ed9f010a6818f5f218235e0da4">&#9670;&#160;</a></span>add_constraint_at()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">void simple_casadi_mpc::Problem::add_constraint_at </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="#a52f49c0322fba7498c08b9c1238fd2a7">ConstraintType</a></td>          <td class="paramname"><span class="paramname"><em>type</em>, </span></td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">std::function&lt; casadi::MX(casadi::MX, casadi::MX)&gt;</td>          <td class="paramname"><span class="paramname"><em>constraint</em>, </span></td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int</td>          <td class="paramname"><span class="paramname"><em>start</em>, </span></td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int</td>          <td class="paramname"><span class="paramname"><em>end</em><span class="paramdefsep"> = </span><span class="paramdefval">-1</span></span>&#160;)</td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">inline</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Add a hard path constraint applied only at the specified stage range. </p>
+<p>Range semantics match set_input_bound:</p><ul>
+<li><code>start == -1, end == -1</code> → all stages \([0, N)\) (same as <a class="el" href="#a48bd6a0c0fb320ccce5feec458fd25c5">add_constraint</a>).</li>
+<li><code>start != -1, end == -1</code> → only stage <code>start</code>.</li>
+<li><code>start != -1, end != -1</code> → stages \([\text{start}, \text{end})\).</li>
+</ul>
+<p>Internally the constraint is still attached to the per-stage <code>g(x, u)</code> vector (so the symbolic structure remains uniform across stages); the path-constraint bound is set to \([-\infty, +\infty]\) on inactive stages so it does not influence the solution. </p>
 
 </div>
 </div>
@@ -575,6 +632,58 @@ class&#160;</td><td class="memItemRight" valign="bottom"><b>CompiledMPC</b></td>
   </table>
   </dd>
 </dl>
+
+</div>
+</div>
+<a id="a4221d17a3fdd0845c6e6daa929af7ad2" name="a4221d17a3fdd0845c6e6daa929af7ad2"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a4221d17a3fdd0845c6e6daa929af7ad2">&#9670;&#160;</a></span>add_soft_constraint_at()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">void simple_casadi_mpc::Problem::add_soft_constraint_at </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="#a52f49c0322fba7498c08b9c1238fd2a7">ConstraintType</a></td>          <td class="paramname"><span class="paramname"><em>type</em>, </span></td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">std::function&lt; casadi::MX(casadi::MX, casadi::MX)&gt;</td>          <td class="paramname"><span class="paramname"><em>constraint</em>, </span></td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">double</td>          <td class="paramname"><span class="paramname"><em>w1</em>, </span></td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">double</td>          <td class="paramname"><span class="paramname"><em>w2</em>, </span></td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int</td>          <td class="paramname"><span class="paramname"><em>start</em>, </span></td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int</td>          <td class="paramname"><span class="paramname"><em>end</em><span class="paramdefsep"> = </span><span class="paramdefval">-1</span></span>&#160;)</td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">inline</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Add a soft path constraint applied only at the specified stage range. </p>
+<p>Range semantics match <a class="el" href="#a1b2ca0ed9f010a6818f5f218235e0da4">add_constraint_at</a>. On inactive stages the associated slack is forced to 0 (so the penalty contributes nothing) and the relaxed constraint bound is set to \([-\infty, +\infty]\). </p>
 
 </div>
 </div>

@@ -267,10 +267,10 @@ Defining a problem</h2>
 <div class="line">  casadi::MX x_ref_;</div>
 <div class="line">};</div>
 <div class="ttc" id="aclasssimple__casadi__mpc_1_1Problem_html"><div class="ttname"><a href="classsimple__casadi__mpc_1_1Problem.html">simple_casadi_mpc::Problem</a></div><div class="ttdoc">Base class describing an MPC optimal control problem.</div><div class="ttdef"><b>Definition</b> simple_casadi_mpc.hpp:57</div></div>
-<div class="ttc" id="aclasssimple__casadi__mpc_1_1Problem_html_a2f29255aec5d2d04de9b7b52b08ceae0"><div class="ttname"><a href="classsimple__casadi__mpc_1_1Problem.html#a2f29255aec5d2d04de9b7b52b08ceae0">simple_casadi_mpc::Problem::set_input_bound</a></div><div class="ttdeci">void set_input_bound(Eigen::VectorXd lb, Eigen::VectorXd ub, int start=-1, int end=-1)</div><div class="ttdoc">Set per-stage input bounds .</div><div class="ttdef"><b>Definition</b> simple_casadi_mpc.hpp:168</div></div>
-<div class="ttc" id="aclasssimple__casadi__mpc_1_1Problem_html_a492af3e0c4bc7aae59c173be38f89328"><div class="ttname"><a href="classsimple__casadi__mpc_1_1Problem.html#a492af3e0c4bc7aae59c173be38f89328">simple_casadi_mpc::Problem::reference_trajectory</a></div><div class="ttdeci">casadi::MX reference_trajectory(std::string name=&quot;x_ref&quot;)</div><div class="ttdoc">Convenience wrapper of parameter with shape .</div><div class="ttdef"><b>Definition</b> simple_casadi_mpc.hpp:316</div></div>
-<div class="ttc" id="aclasssimple__casadi__mpc_1_1Problem_html_a8bc22c81d3a5a90943917b256299576f"><div class="ttname"><a href="classsimple__casadi__mpc_1_1Problem.html#a8bc22c81d3a5a90943917b256299576f">simple_casadi_mpc::Problem::stage_cost</a></div><div class="ttdeci">virtual casadi::MX stage_cost(casadi::MX x, casadi::MX u, size_t k)</div><div class="ttdoc">Stage cost  at step . Default returns 0.</div><div class="ttdef"><b>Definition</b> simple_casadi_mpc.hpp:258</div></div>
-<div class="ttc" id="aclasssimple__casadi__mpc_1_1Problem_html_afafe2a81c603ab5a839c1e550731132a"><div class="ttname"><a href="classsimple__casadi__mpc_1_1Problem.html#afafe2a81c603ab5a839c1e550731132a">simple_casadi_mpc::Problem::terminal_cost</a></div><div class="ttdeci">virtual casadi::MX terminal_cost(casadi::MX x)</div><div class="ttdoc">Terminal cost  evaluated at . Default returns 0.</div><div class="ttdef"><b>Definition</b> simple_casadi_mpc.hpp:266</div></div>
+<div class="ttc" id="aclasssimple__casadi__mpc_1_1Problem_html_a2f29255aec5d2d04de9b7b52b08ceae0"><div class="ttname"><a href="classsimple__casadi__mpc_1_1Problem.html#a2f29255aec5d2d04de9b7b52b08ceae0">simple_casadi_mpc::Problem::set_input_bound</a></div><div class="ttdeci">void set_input_bound(Eigen::VectorXd lb, Eigen::VectorXd ub, int start=-1, int end=-1)</div><div class="ttdoc">Set per-stage input bounds .</div><div class="ttdef"><b>Definition</b> simple_casadi_mpc.hpp:172</div></div>
+<div class="ttc" id="aclasssimple__casadi__mpc_1_1Problem_html_a492af3e0c4bc7aae59c173be38f89328"><div class="ttname"><a href="classsimple__casadi__mpc_1_1Problem.html#a492af3e0c4bc7aae59c173be38f89328">simple_casadi_mpc::Problem::reference_trajectory</a></div><div class="ttdeci">casadi::MX reference_trajectory(std::string name=&quot;x_ref&quot;)</div><div class="ttdoc">Convenience wrapper of parameter with shape .</div><div class="ttdef"><b>Definition</b> simple_casadi_mpc.hpp:349</div></div>
+<div class="ttc" id="aclasssimple__casadi__mpc_1_1Problem_html_a8bc22c81d3a5a90943917b256299576f"><div class="ttname"><a href="classsimple__casadi__mpc_1_1Problem.html#a8bc22c81d3a5a90943917b256299576f">simple_casadi_mpc::Problem::stage_cost</a></div><div class="ttdeci">virtual casadi::MX stage_cost(casadi::MX x, casadi::MX u, size_t k)</div><div class="ttdoc">Stage cost  at step . Default returns 0.</div><div class="ttdef"><b>Definition</b> simple_casadi_mpc.hpp:291</div></div>
+<div class="ttc" id="aclasssimple__casadi__mpc_1_1Problem_html_afafe2a81c603ab5a839c1e550731132a"><div class="ttname"><a href="classsimple__casadi__mpc_1_1Problem.html#afafe2a81c603ab5a839c1e550731132a">simple_casadi_mpc::Problem::terminal_cost</a></div><div class="ttdeci">virtual casadi::MX terminal_cost(casadi::MX x)</div><div class="ttdoc">Terminal cost  evaluated at . Default returns 0.</div><div class="ttdef"><b>Definition</b> simple_casadi_mpc.hpp:299</div></div>
 <div class="ttc" id="aclasssimple__casadi__mpc_1_1Problem_html_afc334373a405d7e6218bff7be52e345e"><div class="ttname"><a href="classsimple__casadi__mpc_1_1Problem.html#afc334373a405d7e6218bff7be52e345e">simple_casadi_mpc::Problem::dynamics</a></div><div class="ttdeci">virtual casadi::MX dynamics(casadi::MX x, casadi::MX u)=0</div><div class="ttdoc">Symbolic dynamics, must be overridden by the user.</div></div>
 </div><!-- fragment --><p>Solve loop:</p>
 <div class="fragment"><div class="line"><span class="keyword">auto</span> prob = std::make_shared&lt;MyProblem&gt;();</div>
@@ -283,7 +283,7 @@ Defining a problem</h2>
 <div class="line">  Eigen::VectorXd u = mpc.solve(x, {{<span class="stringliteral">&quot;x_ref&quot;</span>, x_ref_dm}});</div>
 <div class="line">  x = prob-&gt;simulate(x, u, sim_dt);</div>
 <div class="line">}</div>
-<div class="ttc" id="aclasssimple__casadi__mpc_1_1MPC_html"><div class="ttname"><a href="classsimple__casadi__mpc_1_1MPC.html">simple_casadi_mpc::MPC</a></div><div class="ttdoc">Runtime MPC solver. Builds a CasADi NLP from a Problem and solves it on demand.</div><div class="ttdef"><b>Definition</b> simple_casadi_mpc.hpp:370</div></div>
+<div class="ttc" id="aclasssimple__casadi__mpc_1_1MPC_html"><div class="ttname"><a href="classsimple__casadi__mpc_1_1MPC.html">simple_casadi_mpc::MPC</a></div><div class="ttdoc">Runtime MPC solver. Builds a CasADi NLP from a Problem and solves it on demand.</div><div class="ttdef"><b>Definition</b> simple_casadi_mpc.hpp:417</div></div>
 </div><!-- fragment --><h2><a class="anchor" id="autotoc_md7"></a>
 Hard path constraints</h2>
 <p>Add equality / inequality path constraints applied at every stage:</p>
@@ -300,6 +300,14 @@ Hard path constraints</h2>
 <div class="line">add_constraint(ConstraintType::Equality, [](casadi::MX x, casadi::MX u) {</div>
 <div class="line">  <span class="keywordflow">return</span> casadi::MX::vertcat({u(0) + u(1)}); <span class="comment">// e.g. force a coupling</span></div>
 <div class="line">});</div>
+</div><!-- fragment --><p>To apply a constraint only to a subset of stages, use <code>add_constraint_at(type, func, start, end)</code>. Range semantics match <code>set_input_bound</code>:</p>
+<div class="fragment"><div class="line"><span class="comment">// Only at stage 0 (single-stage form, omit `end`)</span></div>
+<div class="line">add_constraint_at(ConstraintType::Equality,</div>
+<div class="line">                  [&amp;](casadi::MX x, casadi::MX) { <span class="keywordflow">return</span> x - x_target; }, 0);</div>
+<div class="line"> </div>
+<div class="line"><span class="comment">// Only on stages [N-3, N) (terminal-band)</span></div>
+<div class="line">add_constraint_at(ConstraintType::Inequality,</div>
+<div class="line">                  [&amp;](casadi::MX x, casadi::MX) { <span class="keywordflow">return</span> x - x_safe; }, N - 3, N);</div>
 </div><!-- fragment --><h2><a class="anchor" id="autotoc_md8"></a>
 Soft path constraints</h2>
 <p><code>add_soft_constraint(type, func, w1, w2)</code> introduces non-negative per-stage slack variables $s \ge 0$ and adds the penalty $w_1 \mathbf{1}^\top s + \tfrac{1}{2} w_2 s^\top s$ to the cost. The original constraint is relaxed as:</p>
@@ -313,7 +321,11 @@ Soft path constraints</h2>
 <div class="line"><span class="comment">// Mixed L1 + L2 penalty.</span></div>
 <div class="line">add_soft_constraint(ConstraintType::Inequality, my_constraint, <span class="comment">/*w1=*/</span>1e2, <span class="comment">/*w2=*/</span>1.0);</div>
 </div><!-- fragment --><p>The default <code>w2 = 0</code> gives a pure L1 (exact) penalty; <code>w2 &gt; 0</code> adds an L2 (smooth) term. Large <code>w1</code> recovers hard-constraint behavior; small <code>w1</code> lets the optimizer trade violation against the rest of the cost. Hard <code>add_constraint</code> and soft <code>add_soft_constraint</code> may be mixed on the same problem.</p>
-<h2><a class="anchor" id="autotoc_md9"></a>
+<p>Stage-specific variants are also available — same <code>start</code>/<code>end</code> semantics as <code>add_constraint_at</code>:</p>
+<div class="fragment"><div class="line">add_soft_constraint_at(ConstraintType::Inequality, my_constraint,</div>
+<div class="line">                       <span class="comment">/*w1=*/</span>1e3, <span class="comment">/*w2=*/</span>0.0,</div>
+<div class="line">                       <span class="comment">/*start=*/</span>N - 3, <span class="comment">/*end=*/</span>N); <span class="comment">// only the last 3 stages</span></div>
+</div><!-- fragment --><h2><a class="anchor" id="autotoc_md9"></a>
 Usage for CompiledMPC via CMake</h2>
 <div class="fragment"><div class="line">find_package(simple_casadi_mpc REQUIRED)</div>
 <div class="line"> </div>
@@ -397,7 +409,7 @@ Choosing a solver backend</h2>
 <div class="fragment"><div class="line"><span class="keyword">auto</span> cfg = <a class="code hl_function" href="classsimple__casadi__mpc_1_1MPC.html#a1514b20c0388b7a07a82efe1465bffe3">simple_casadi_mpc::MPC::default_fatrop_config</a>();</div>
 <div class="line">cfg[<span class="stringliteral">&quot;fatrop.max_iter&quot;</span>] = 100;</div>
 <div class="line"><a class="code hl_class" href="classsimple__casadi__mpc_1_1MPC.html">simple_casadi_mpc::MPC</a> mpc(prob, <span class="stringliteral">&quot;fatrop&quot;</span>, cfg);</div>
-<div class="ttc" id="aclasssimple__casadi__mpc_1_1MPC_html_a1514b20c0388b7a07a82efe1465bffe3"><div class="ttname"><a href="classsimple__casadi__mpc_1_1MPC.html#a1514b20c0388b7a07a82efe1465bffe3">simple_casadi_mpc::MPC::default_fatrop_config</a></div><div class="ttdeci">static casadi::Dict default_fatrop_config()</div><div class="ttdoc">Reasonable defaults for the FATROP backend (auto structure detection).</div><div class="ttdef"><b>Definition</b> simple_casadi_mpc.hpp:398</div></div>
+<div class="ttc" id="aclasssimple__casadi__mpc_1_1MPC_html_a1514b20c0388b7a07a82efe1465bffe3"><div class="ttname"><a href="classsimple__casadi__mpc_1_1MPC.html#a1514b20c0388b7a07a82efe1465bffe3">simple_casadi_mpc::MPC::default_fatrop_config</a></div><div class="ttdeci">static casadi::Dict default_fatrop_config()</div><div class="ttdoc">Reasonable defaults for the FATROP backend (auto structure detection).</div><div class="ttdef"><b>Definition</b> simple_casadi_mpc.hpp:445</div></div>
 </div><!-- fragment --><p>FATROP requires CasADi to be built with <code>WITH_FATROP=ON</code> and <code>WITH_BLASFEO=ON</code>; see <a href="install_casadi.sh"><code>install_casadi.sh</code></a>.</p>
 <h2><a class="anchor" id="autotoc_md18"></a>
 Picking <code>MPC</code> vs <code>JITMPC</code> vs <code>CompiledMPC</code></h2>
@@ -416,9 +428,9 @@ Customizing JIT compile options</h2>
 <div class="line"><a class="code hl_class" href="classsimple__casadi__mpc_1_1JITMPC.html">simple_casadi_mpc::JITMPC</a> mpc(<span class="stringliteral">&quot;my_prob&quot;</span>, prob, <span class="stringliteral">&quot;ipopt&quot;</span>,</div>
 <div class="line">                               <a class="code hl_function" href="classsimple__casadi__mpc_1_1MPC.html#a153db7a81684bd671b703885f25fe1cd">simple_casadi_mpc::MPC::default_ipopt_config</a>(),</div>
 <div class="line">                               opts);</div>
-<div class="ttc" id="aclasssimple__casadi__mpc_1_1JITMPC_html"><div class="ttname"><a href="classsimple__casadi__mpc_1_1JITMPC.html">simple_casadi_mpc::JITMPC</a></div><div class="ttdoc">MPC variant that JIT-compiles the solver during construction.</div><div class="ttdef"><b>Definition</b> simple_casadi_mpc.hpp:943</div></div>
-<div class="ttc" id="aclasssimple__casadi__mpc_1_1JITMPC_html_a49b0b526bb70967fb7f495e9bc9b053f"><div class="ttname"><a href="classsimple__casadi__mpc_1_1JITMPC.html#a49b0b526bb70967fb7f495e9bc9b053f">simple_casadi_mpc::JITMPC::default_jit_options</a></div><div class="ttdeci">static casadi::Dict default_jit_options()</div><div class="ttdoc">Default JIT compile options (compiler / flags / verbose) passed to CasADi.</div><div class="ttdef"><b>Definition</b> simple_casadi_mpc.hpp:955</div></div>
-<div class="ttc" id="aclasssimple__casadi__mpc_1_1MPC_html_a153db7a81684bd671b703885f25fe1cd"><div class="ttname"><a href="classsimple__casadi__mpc_1_1MPC.html#a153db7a81684bd671b703885f25fe1cd">simple_casadi_mpc::MPC::default_ipopt_config</a></div><div class="ttdeci">static casadi::Dict default_ipopt_config()</div><div class="ttdoc">Reasonable defaults for the IPOPT backend (silent, warm-start enabled).</div><div class="ttdef"><b>Definition</b> simple_casadi_mpc.hpp:373</div></div>
+<div class="ttc" id="aclasssimple__casadi__mpc_1_1JITMPC_html"><div class="ttname"><a href="classsimple__casadi__mpc_1_1JITMPC.html">simple_casadi_mpc::JITMPC</a></div><div class="ttdoc">MPC variant that JIT-compiles the solver during construction.</div><div class="ttdef"><b>Definition</b> simple_casadi_mpc.hpp:1012</div></div>
+<div class="ttc" id="aclasssimple__casadi__mpc_1_1JITMPC_html_a49b0b526bb70967fb7f495e9bc9b053f"><div class="ttname"><a href="classsimple__casadi__mpc_1_1JITMPC.html#a49b0b526bb70967fb7f495e9bc9b053f">simple_casadi_mpc::JITMPC::default_jit_options</a></div><div class="ttdeci">static casadi::Dict default_jit_options()</div><div class="ttdoc">Default JIT compile options (compiler / flags / verbose) passed to CasADi.</div><div class="ttdef"><b>Definition</b> simple_casadi_mpc.hpp:1024</div></div>
+<div class="ttc" id="aclasssimple__casadi__mpc_1_1MPC_html_a153db7a81684bd671b703885f25fe1cd"><div class="ttname"><a href="classsimple__casadi__mpc_1_1MPC.html#a153db7a81684bd671b703885f25fe1cd">simple_casadi_mpc::MPC::default_ipopt_config</a></div><div class="ttdeci">static casadi::Dict default_ipopt_config()</div><div class="ttdoc">Reasonable defaults for the IPOPT backend (silent, warm-start enabled).</div><div class="ttdef"><b>Definition</b> simple_casadi_mpc.hpp:420</div></div>
 </div><!-- fragment --><h2><a class="anchor" id="autotoc_md20"></a>
 Runtime-tunable parameters</h2>
 <p><code>Problem::parameter(name, rows, cols)</code> returns a symbolic MX; update it at each solve:</p>
