@@ -765,10 +765,22 @@ private:
 
 class JITMPC : public MPC {
 public:
+  // Default JIT compile options (compiler / flags / verbose) passed to CasADi.
+  // Override via the constructor's `jit_options` argument.
+  static casadi::Dict default_jit_options() {
+    return casadi::Dict{
+        {"compiler", "ccache gcc"},
+        {"flags", "-O3 -march=native"},
+        {"verbose", false},
+    };
+  }
+
   template <class T>
   JITMPC(const std::string &prob_name, std::shared_ptr<T> prob, std::string solver_name = "ipopt",
-         casadi::Dict config = MPC::default_ipopt_config(), const bool verbose = false)
-      : MPC(prob, solver_name, config), prob_(prob), prob_name_(prob_name) {
+         casadi::Dict config = MPC::default_ipopt_config(),
+         casadi::Dict jit_options = JITMPC::default_jit_options(), const bool verbose = false)
+      : MPC(prob, solver_name, config), prob_(prob), prob_name_(prob_name),
+        jit_options_(std::move(jit_options)) {
     static_assert(std::is_base_of_v<Problem, T>, "prob must be based SimpleProb");
 
     if (verbose)
@@ -824,18 +836,13 @@ private:
   void generate_and_compile_code(const std::string &prob_name) {
     using namespace casadi;
 
-    // JIT compile the solver for better performance
-    Dict jit_options = config_;
-    jit_options["jit"] = true;
-    jit_options["jit_options"] = Dict{
-        {"compiler", "ccache gcc"},
-        {"flags", "-O3 -march=native"},
-        {"verbose", false},
-    };
-    jit_options["jit_name"] = "jit_" + prob_name;
-    jit_options["jit_temp_suffix"] = false;
+    Dict nlpsol_config = config_;
+    nlpsol_config["jit"] = true;
+    nlpsol_config["jit_options"] = jit_options_;
+    nlpsol_config["jit_name"] = "jit_" + prob_name;
+    nlpsol_config["jit_temp_suffix"] = false;
 
-    compiled_solver_ = nlpsol("compiled_solver", solver_name_, casadi_prob_, jit_options);
+    compiled_solver_ = nlpsol("compiled_solver", solver_name_, casadi_prob_, nlpsol_config);
   }
 
   virtual void build_solver() override {
@@ -845,6 +852,7 @@ private:
   casadi::Function compiled_solver_;
   std::shared_ptr<Problem> prob_;
   std::string prob_name_;
+  casadi::Dict jit_options_;
 };
 
 class CompiledMPC : public MPC {
