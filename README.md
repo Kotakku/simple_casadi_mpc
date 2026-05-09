@@ -39,6 +39,102 @@ target_link_libraries(my_target PRIVATE simple_casadi_mpc)
 
 Limitation for `CompiledMPC`: the solver backend (IPOPT/FATROP/...) and its parameters are fixed at build time.
 
+## Problem format
+
+The library solves the following discrete-time finite-horizon optimal control problem at every `solve()` call:
+
+$$
+\begin{aligned}
+\min_{\substack{x_0,\dots,x_N \cr u_0,\dots,u_{N-1}}} \quad
+& \sum_{k=0}^{N-1} L(x_k, u_k, k;\,p) \;+\; \Phi(x_N;\,p) \cr
+\text{s.t.} \quad
+& x_0 = x_\text{init}, \cr
+& x_{k+1} = f_d(x_k, u_k;\,p), && k = 0, \dots, N-1, \cr
+& g_\text{eq}^{(i)}(x_k, u_k;\,p) = 0, && k = 0, \dots, N-1,\; i = 1, \dots, n_\text{eq}, \cr
+& g_\text{ineq}^{(j)}(x_k, u_k;\,p) \le 0, && k = 0, \dots, N-1,\; j = 1, \dots, n_\text{ineq}, \cr
+& x_{\text{lb},k} \le x_k \le x_{\text{ub},k}, && k = 0, \dots, N, \cr
+& u_{\text{lb},k} \le u_k \le u_{\text{ub},k}, && k = 0, \dots, N-1.
+\end{aligned}
+$$
+
+Symbol mapping:
+
+| Symbol                                    | Code                                                                                                                     |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| $x_k \in \mathbb{R}^{n_x}$                | state at stage $k$ (`Problem::nx()`)                                                                                     |
+| $u_k \in \mathbb{R}^{n_u}$                | control at stage $k$ (`Problem::nu()`)                                                                                   |
+| $N$                                       | prediction horizon (`Problem::horizon()`)                                                                                |
+| $L(x_k, u_k, k;\,p)$                      | `Problem::stage_cost(x, u, k)`                                                                                           |
+| $\Phi(x_N;\,p)$                           | `Problem::terminal_cost(x)`                                                                                              |
+| $f_d$                                     | discretization of `Problem::dynamics(x, u)` per `DynamicsType`                                                           |
+| $g_\text{eq}^{(i)},\,g_\text{ineq}^{(j)}$ | each call to `Problem::add_constraint(Equality / Inequality, ...)` adds one $g_\text{eq}^{(i)}$ or $g_\text{ineq}^{(j)}$ |
+| $x_{\text{lb},k},\,x_{\text{ub},k}$       | `Problem::set_state_bound(...)`                                                                                          |
+| $u_{\text{lb},k},\,u_{\text{ub},k}$       | `Problem::set_input_bound(...)`                                                                                          |
+| $p$                                       | runtime parameters via `Problem::parameter(...)` / `reference_trajectory(...)`                                           |
+| $x_\text{init}$                           | first argument to `MPC::solve(x, ...)`                                                                                   |
+
+For `DynamicsType::ContinuesForwardEuler`, `ContinuesModifiedEuler`, and `ContinuesRK4`, $f_d$ is the corresponding one-step integrator applied to the user-supplied continuous dynamics $\frac{dx}{dt} = f(x, u)$ with step size $\Delta t$. For `DynamicsType::Discretized` the user supplies $f_d$ directly.
+
+Soft constraints add slack $s \ge 0$ and a penalty term to the cost; see [Soft constraints](#soft-constraints) below.
+
+### Defining a problem
+
+Define your MPC problem by deriving from `simple_casadi_mpc::Problem` and overriding `dynamics`, `stage_cost`, and (optionally) `terminal_cost`:
+
+```cpp
+#include "simple_casadi_mpc/simple_casadi_mpc.hpp"
+
+class MyProblem : public simple_casadi_mpc::Problem {
+public:
+  MyProblem()
+      // DynamicsType, nx, nu, horizon (N), dt
+      : Problem(DynamicsType::ContinuesRK4, /*nx=*/2, /*nu=*/1, /*N=*/20, /*dt=*/0.05) {
+    // Optional: per-stage input/state bounds
+    set_input_bound(Eigen::VectorXd::Constant(1, -1.0),
+                    Eigen::VectorXd::Constant(1,  1.0));
+    // Optional: runtime-tunable parameters (updated each `solve` call)
+    x_ref_ = reference_trajectory("x_ref"); // shape (nx, N)
+  }
+
+  // Continuous dynamics: return dx/dt for {ContinuesForwardEuler|ContinuesModifiedEuler|ContinuesRK4}
+  // Discrete dynamics:   return x_{k+1} for {Discretized}
+  casadi::MX dynamics(casadi::MX x, casadi::MX u) override {
+    return casadi::MX::vertcat({x(1), u});
+  }
+
+  // Per-stage cost. `k` is the stage index in [0, horizon).
+  casadi::MX stage_cost(casadi::MX x, casadi::MX u, size_t k) override {
+    casadi::MX e = x - x_ref_(casadi::Slice(), k);
+    return casadi::MX::mtimes(e.T(), e) + 0.1 * casadi::MX::mtimes(u.T(), u);
+  }
+
+  // Terminal cost on x_N (default returns 0 if not overridden).
+  casadi::MX terminal_cost(casadi::MX x) override {
+    return 10.0 * casadi::MX::mtimes(x.T(), x);
+  }
+
+private:
+  casadi::MX x_ref_;
+};
+```
+
+Solve loop:
+
+```cpp
+auto prob = std::make_shared<MyProblem>();
+simple_casadi_mpc::MPC mpc(prob); // or JITMPC / CompiledMPC
+
+Eigen::VectorXd x = /* initial state */;
+for (...) {
+  // Update parameters declared via `parameter(...)` / `reference_trajectory(...)`
+  casadi::DM x_ref_dm = /* (nx, N) DM */;
+  Eigen::VectorXd u = mpc.solve(x, {{"x_ref", x_ref_dm}});
+  x = prob->simulate(x, u, sim_dt);
+}
+```
+
+Hard and soft path constraints (`g(x, u) <= 0` or `= 0`) can be added with `add_constraint` / `soft_add_constraint`; see below.
+
 ### Usage for CompiledMPC via CMake
 
 ```cmake
@@ -121,6 +217,69 @@ From: [example/diff_drive_soft_constraint_example.cpp](https://github.com/Kotakk
 - Equality `h(x,u) = 0` becomes `|h| ≤ s`, encoded as `h − s ≤ 0` and `−h − s ≤ 0`.
 
 The default `w2 = 0` gives a pure L1 (exact) penalty; setting `w2 > 0` adds an L2 (smooth) term. Large `w1` recovers hard-constraint behavior; small `w1` allows the optimizer to trade violation against the rest of the cost. Hard `add_constraint` and soft `soft_add_constraint` can be mixed on the same problem.
+
+## Tips
+
+### Choosing a solver backend
+
+| Backend | Default config             | Best for                                          |
+| ------- | -------------------------- | ------------------------------------------------- |
+| IPOPT   | `default_ipopt_config()`   | General-purpose NLP; default and easiest to debug |
+| FATROP  | `default_fatrop_config()`  | OCP-structured problems; fastest for MPC          |
+| qpOASES | `default_qpoases_config()` | SQP method backed by qpOASES (linear-quadratic)   |
+
+Pass a copy of one of these dicts as the third argument to `MPC` / `JITMPC`, mutating any keys you need:
+
+```cpp
+auto cfg = simple_casadi_mpc::MPC::default_fatrop_config();
+cfg["fatrop.max_iter"] = 100;
+simple_casadi_mpc::MPC mpc(prob, "fatrop", cfg);
+```
+
+FATROP requires CasADi to be built with `WITH_FATROP=ON` and `WITH_BLASFEO=ON`; see [`install_casadi.sh`](install_casadi.sh).
+
+### Picking `MPC` vs `JITMPC` vs `CompiledMPC`
+
+- Reach for `MPC` while iterating on the problem itself; no compile step.
+- Switch to `JITMPC` once the model is stable. The first `solve` triggers a `gcc -O3 -march=native` compile; cache it with `ccache` (the default `default_jit_options()` already does so).
+- Use `CompiledMPC` (with the `add_simple_casadi_mpc_codegen` CMake helper) when you want zero runtime startup cost and the solver backend is fixed.
+
+### Customizing JIT compile options
+
+Override the defaults from `JITMPC::default_jit_options()`:
+
+```cpp
+auto opts = simple_casadi_mpc::JITMPC::default_jit_options();
+opts["compiler"] = "clang";
+opts["flags"] = "-O2 -fno-fast-math";
+opts["verbose"] = true;
+simple_casadi_mpc::JITMPC mpc("my_prob", prob, "ipopt",
+                               simple_casadi_mpc::MPC::default_ipopt_config(),
+                               opts);
+```
+
+### Runtime-tunable parameters
+
+`Problem::parameter(name, rows, cols)` returns a symbolic MX; update it at each solve:
+
+```cpp
+mpc.solve(x, {{"x_ref", x_ref_dm}, {"obstacle", obs_dm}});
+```
+
+`reference_trajectory(name)` is a shorthand for `parameter(name, nx, horizon)` whose column `k` is consumed at stage `k`.
+
+### Performance knobs (`MPC` / `JITMPC` config)
+
+Two simple-casadi-mpc-specific options can be passed in the config dict (consumed before being forwarded to CasADi):
+
+- `mapsum_stage_cost` (default `true`): build the stage-cost sum via MapSum so first-order AD stays loop-shaped.
+- `expand_inner_functions` (default `true`): SX-expand per-stage F/L/G before mapping for faster JIT compilation.
+
+Both default to `true`. If your `stage_cost` has stage-dependent branching beyond per-stage parameter slicing, the library auto-falls-back to a per-stage loop (warning emitted) and you can also set `mapsum_stage_cost = false` explicitly.
+
+### Warm starting
+
+`MPC::solve` caches the previous `x`, `lam_x`, `lam_g` internally and feeds them to the next solve, so closed-loop simulations naturally benefit. Solver-side warm start is also enabled in `default_ipopt_config()` (`ipopt.warm_start_init_point = "yes"`).
 
 ## Benchmarks
 

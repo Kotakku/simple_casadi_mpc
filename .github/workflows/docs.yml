@@ -3,6 +3,8 @@ name: docs
 on:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -19,9 +21,15 @@ jobs:
           submodules: recursive
 
       - name: Install Doxygen
+        env:
+          DOXYGEN_VERSION: 1.10.0
         run: |
           sudo apt-get update
-          sudo apt-get install -y doxygen graphviz
+          sudo apt-get install -y graphviz
+          wget -q "https://www.doxygen.nl/files/doxygen-${DOXYGEN_VERSION}.linux.bin.tar.gz"
+          tar -xf "doxygen-${DOXYGEN_VERSION}.linux.bin.tar.gz"
+          sudo install -m 0755 "doxygen-${DOXYGEN_VERSION}/bin/doxygen" /usr/local/bin/doxygen
+          doxygen --version
 
       - name: Build docs
         run: |
@@ -29,6 +37,7 @@ jobs:
           doxygen Doxyfile
 
       - name: Deploy to GitHub Pages
+        if: github.event_name != 'pull_request'
         uses: JamesIves/github-pages-deploy-action@v4
         with:
           branch: gh-pages

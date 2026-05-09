@@ -3,8 +3,7 @@ OUTPUT_DIRECTORY       = build
 OUTPUT_LANGUAGE        = English
 
 INPUT                  = ../README.md \
-                         ../include \
-                         ../example
+                         ../include
 RECURSIVE              = YES
 FILE_PATTERNS          = *.hpp \
                          *.cpp \
@@ -41,3 +40,9 @@ INLINE_SOURCES         = NO
 
 QUIET                  = YES
 WARN_IF_UNDOCUMENTED   = NO
+WARN_IF_DOC_ERROR      = NO
+
+USE_MATHJAX            = YES
+MATHJAX_VERSION        = MathJax_3
+MATHJAX_EXTENSIONS     = ams
+MATHJAX_CODEFILE       = mathjax-config.js
