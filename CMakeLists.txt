@@ -5,7 +5,7 @@ option(BUILD_BENCHMARKS "Build benchmark executables" OFF)
 
 project(
   simple_casadi_mpc
-  VERSION 0.1.0 # x-release-please-version
+  VERSION 1.0.0 # x-release-please-version
   LANGUAGES CXX)
 
 find_package(casadi REQUIRED)
