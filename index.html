@@ -228,7 +228,7 @@ Problem format</h1>
 <td class="markdownTableBodyNone">$x_\text{init}$   </td><td class="markdownTableBodyNone">first argument to <code>MPC::solve(x, ...)</code>   </td></tr>
 </table>
 <p>For <code>DynamicsType::ContinuesForwardEuler</code>, <code>ContinuesModifiedEuler</code>, and <code>ContinuesRK4</code>, $f_d$ is the corresponding one-step integrator applied to the user-supplied continuous dynamics $\frac{dx}{dt} = f(x, u)$ with step size $\Delta t$. For <code>DynamicsType::Discretized</code> the user supplies $f_d$ directly.</p>
-<p>Soft constraints add slack $s \ge 0$ and a penalty term to the cost; see Soft constraints below.</p>
+<p>Soft constraints add slack $s \ge 0$ and a penalty term to the cost; see Soft path constraints below.</p>
 <h2><a class="anchor" id="autotoc_md6"></a>
 Defining a problem</h2>
 <p>Define your MPC problem by deriving from <code><a class="el" href="classsimple__casadi__mpc_1_1Problem.html" title="Base class describing an MPC optimal control problem.">simple_casadi_mpc::Problem</a></code> and overriding <code>dynamics</code>, <code>stage_cost</code>, and (optionally) <code>terminal_cost</code>:</p>
@@ -284,8 +284,36 @@ Defining a problem</h2>
 <div class="line">  x = prob-&gt;simulate(x, u, sim_dt);</div>
 <div class="line">}</div>
 <div class="ttc" id="aclasssimple__casadi__mpc_1_1MPC_html"><div class="ttname"><a href="classsimple__casadi__mpc_1_1MPC.html">simple_casadi_mpc::MPC</a></div><div class="ttdoc">Runtime MPC solver. Builds a CasADi NLP from a Problem and solves it on demand.</div><div class="ttdef"><b>Definition</b> simple_casadi_mpc.hpp:338</div></div>
-</div><!-- fragment --><p>Hard and soft path constraints (<code>g(x, u) &lt;= 0</code> or <code>= 0</code>) can be added with <code>add_constraint</code> / <code>soft_add_constraint</code>; see below.</p>
-<h2><a class="anchor" id="autotoc_md7"></a>
+</div><!-- fragment --><h2><a class="anchor" id="autotoc_md7"></a>
+Hard path constraints</h2>
+<p>Add equality / inequality path constraints applied at every stage:</p>
+<div class="fragment"><div class="line"><span class="comment">// In your Problem subclass constructor:</span></div>
+<div class="line"> </div>
+<div class="line"><span class="comment">// Inequality g(x, u) &lt;= 0  (e.g. circular obstacle: r^2 - |xy - c|^2 &lt;= 0)</span></div>
+<div class="line">add_constraint(ConstraintType::Inequality, [](casadi::MX x, casadi::MX u) {</div>
+<div class="line">  <span class="keyword">using namespace </span>casadi;</div>
+<div class="line">  MX dx = x(0) - 1.0, dy = x(1) - 0.5;</div>
+<div class="line">  <span class="keywordflow">return</span> MX::vertcat({0.5 * 0.5 - (dx * dx + dy * dy)});</div>
+<div class="line">});</div>
+<div class="line"> </div>
+<div class="line"><span class="comment">// Equality g(x, u) = 0</span></div>
+<div class="line">add_constraint(ConstraintType::Equality, [](casadi::MX x, casadi::MX u) {</div>
+<div class="line">  <span class="keywordflow">return</span> casadi::MX::vertcat({u(0) + u(1)}); <span class="comment">// e.g. force a coupling</span></div>
+<div class="line">});</div>
+</div><!-- fragment --><h2><a class="anchor" id="autotoc_md8"></a>
+Soft path constraints</h2>
+<p><code>add_soft_constraint(type, func, w1, w2)</code> introduces non-negative per-stage slack variables $s \ge 0$ and adds the penalty $w_1 \mathbf{1}^\top s + \tfrac{1}{2} w_2 s^\top s$ to the cost. The original constraint is relaxed as:</p>
+<ul>
+<li>Inequality $g(x, u) \le 0 \;\to\; g - s \le 0$.</li>
+<li>Equality $h(x, u) = 0 \;\to\; |h| \le s$, i.e. $h - s \le 0$ and $-h - s \le 0$.</li>
+</ul>
+<div class="fragment"><div class="line"><span class="comment">// Soft inequality with L1 weight 1e3 (default) and no L2 term.</span></div>
+<div class="line">add_soft_constraint(ConstraintType::Inequality, my_constraint);</div>
+<div class="line"> </div>
+<div class="line"><span class="comment">// Mixed L1 + L2 penalty.</span></div>
+<div class="line">add_soft_constraint(ConstraintType::Inequality, my_constraint, <span class="comment">/*w1=*/</span>1e2, <span class="comment">/*w2=*/</span>1.0);</div>
+</div><!-- fragment --><p>The default <code>w2 = 0</code> gives a pure L1 (exact) penalty; <code>w2 &gt; 0</code> adds an L2 (smooth) term. Large <code>w1</code> recovers hard-constraint behavior; small <code>w1</code> lets the optimizer trade violation against the rest of the cost. Hard <code>add_constraint</code> and soft <code>add_soft_constraint</code> may be mixed on the same problem.</p>
+<h2><a class="anchor" id="autotoc_md9"></a>
 Usage for CompiledMPC via CMake</h2>
 <div class="fragment"><div class="line">find_package(simple_casadi_mpc REQUIRED)</div>
 <div class="line"> </div>
@@ -307,16 +335,16 @@ Usage for CompiledMPC via CMake</h2>
 <div class="line">target_link_libraries(&lt;your_exe&gt; PRIVATE</div>
 <div class="line">  simple_casadi_mpc::simple_casadi_mpc</div>
 <div class="line">  ${&lt;solver_target_name&gt;_COMPILED_SOLVER})</div>
-</div><!-- fragment --><h1><a class="anchor" id="autotoc_md8"></a>
+</div><!-- fragment --><h1><a class="anchor" id="autotoc_md10"></a>
 Examples</h1>
-<h2><a class="anchor" id="autotoc_md9"></a>
+<h2><a class="anchor" id="autotoc_md11"></a>
 double_integrator_mpc_example</h2>
 <p>Drives a frictionless point mass to the origin (position and velocity feedback).</p>
 <p>From: <a href="https://github.com/Kotakku/simple_casadi_mpc/blob/main/example/double_integrator_mpc_example.cpp">example/double_integrator_mpc_example.cpp</a></p>
 <div class="image">
 <img src="double_integrator_mpc_example.png" alt=""/>
 </div>
-    <h2><a class="anchor" id="autotoc_md10"></a>
+    <h2><a class="anchor" id="autotoc_md12"></a>
 cartpole_mpc_example</h2>
 <p>Cartpole swing-up and balance (problem setup from the linked gists).</p>
 <p>From: <a href="https://github.com/Kotakku/simple_casadi_mpc/blob/main/example/cartpole_mpc_example.cpp">example/cartpole_mpc_example.cpp</a></p>
@@ -327,7 +355,7 @@ cartpole_mpc_example</h2>
     <div class="image">
 <img src="cartpole.gif" alt=""/>
 </div>
-    <h2><a class="anchor" id="autotoc_md11"></a>
+    <h2><a class="anchor" id="autotoc_md13"></a>
 inverted_pendulum_mpc_example</h2>
 <p>Rotary inverted pendulum swing-up with torque limits that force a multi-phase motion.</p>
 <p>From: <a href="https://github.com/Kotakku/simple_casadi_mpc/blob/main/example/inverted_pendulum_mpc_example.cpp">example/inverted_pendulum_mpc_example.cpp</a></p>
@@ -337,7 +365,7 @@ inverted_pendulum_mpc_example</h2>
     <div class="image">
 <img src="inverted_pendulum.gif" alt=""/>
 </div>
-    <h2><a class="anchor" id="autotoc_md12"></a>
+    <h2><a class="anchor" id="autotoc_md14"></a>
 diff_drive_mpc_example</h2>
 <p>Differential-drive robot from top-left to bottom-right while avoiding circular obstacles and respecting velocity limits.</p>
 <p>From: <a href="https://github.com/Kotakku/simple_casadi_mpc/blob/main/example/diff_drive_mpc_example.cpp">example/diff_drive_mpc_example.cpp</a></p>
@@ -347,21 +375,13 @@ diff_drive_mpc_example</h2>
     <div class="image">
 <img src="diff_drive.gif" alt=""/>
 </div>
-    <h2><a class="anchor" id="autotoc_md13"></a>
+    <h2><a class="anchor" id="autotoc_md15"></a>
 diff_drive_soft_constraint_example</h2>
-<p>Same diff-drive setup with a single circular obstacle, comparing <code>add_constraint</code> (hard) and <code>soft_add_constraint</code> (soft) for the obstacle. With a large penalty weight the soft formulation matches the hard one; with a small weight the optimizer prefers cutting through the obstacle if the tracking gain dominates the violation cost.</p>
+<p>Same diff-drive setup with a single circular obstacle, comparing <code>add_constraint</code> (hard) and <code>add_soft_constraint</code> (soft) for the obstacle. With a large penalty weight the soft formulation matches the hard one; with a small weight the optimizer prefers cutting through the obstacle if the tracking gain dominates the violation cost.</p>
 <p>From: <a href="https://github.com/Kotakku/simple_casadi_mpc/blob/main/example/diff_drive_soft_constraint_example.cpp">example/diff_drive_soft_constraint_example.cpp</a></p>
-<h1><a class="anchor" id="autotoc_md14"></a>
-Soft constraints</h1>
-<p><code>Problem::soft_add_constraint(type, func, w1, w2)</code> introduces non-negative per-stage slack variables <code>s ≥ 0</code> and adds <code>w1 · 1ᵀs + 0.5 · w2 · sᵀs</code> to the cost.</p>
-<ul>
-<li>Inequality <code>g(x,u) ≤ 0</code> becomes <code>g − s ≤ 0</code>.</li>
-<li>Equality <code>h(x,u) = 0</code> becomes <code>|h| ≤ s</code>, encoded as <code>h − s ≤ 0</code> and <code>−h − s ≤ 0</code>.</li>
-</ul>
-<p>The default <code>w2 = 0</code> gives a pure L1 (exact) penalty; setting <code>w2 &gt; 0</code> adds an L2 (smooth) term. Large <code>w1</code> recovers hard-constraint behavior; small <code>w1</code> allows the optimizer to trade violation against the rest of the cost. Hard <code>add_constraint</code> and soft <code>soft_add_constraint</code> can be mixed on the same problem.</p>
-<h1><a class="anchor" id="autotoc_md15"></a>
+<h1><a class="anchor" id="autotoc_md16"></a>
 Tips</h1>
-<h2><a class="anchor" id="autotoc_md16"></a>
+<h2><a class="anchor" id="autotoc_md17"></a>
 Choosing a solver backend</h2>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -379,14 +399,14 @@ Choosing a solver backend</h2>
 <div class="line"><a class="code hl_class" href="classsimple__casadi__mpc_1_1MPC.html">simple_casadi_mpc::MPC</a> mpc(prob, <span class="stringliteral">&quot;fatrop&quot;</span>, cfg);</div>
 <div class="ttc" id="aclasssimple__casadi__mpc_1_1MPC_html_a1514b20c0388b7a07a82efe1465bffe3"><div class="ttname"><a href="classsimple__casadi__mpc_1_1MPC.html#a1514b20c0388b7a07a82efe1465bffe3">simple_casadi_mpc::MPC::default_fatrop_config</a></div><div class="ttdeci">static casadi::Dict default_fatrop_config()</div><div class="ttdoc">Reasonable defaults for the FATROP backend (auto structure detection).</div><div class="ttdef"><b>Definition</b> simple_casadi_mpc.hpp:366</div></div>
 </div><!-- fragment --><p>FATROP requires CasADi to be built with <code>WITH_FATROP=ON</code> and <code>WITH_BLASFEO=ON</code>; see <a href="install_casadi.sh"><code>install_casadi.sh</code></a>.</p>
-<h2><a class="anchor" id="autotoc_md17"></a>
+<h2><a class="anchor" id="autotoc_md18"></a>
 Picking <code>MPC</code> vs <code>JITMPC</code> vs <code>CompiledMPC</code></h2>
 <ul>
 <li>Reach for <code>MPC</code> while iterating on the problem itself; no compile step.</li>
 <li>Switch to <code>JITMPC</code> once the model is stable. The first <code>solve</code> triggers a <code>gcc -O3 -march=native</code> compile; cache it with <code>ccache</code> (the default <code>default_jit_options()</code> already does so).</li>
 <li>Use <code>CompiledMPC</code> (with the <code>add_simple_casadi_mpc_codegen</code> CMake helper) when you want zero runtime startup cost and the solver backend is fixed.</li>
 </ul>
-<h2><a class="anchor" id="autotoc_md18"></a>
+<h2><a class="anchor" id="autotoc_md19"></a>
 Customizing JIT compile options</h2>
 <p>Override the defaults from <code>JITMPC::default_jit_options()</code>:</p>
 <div class="fragment"><div class="line"><span class="keyword">auto</span> opts = <a class="code hl_function" href="classsimple__casadi__mpc_1_1JITMPC.html#a49b0b526bb70967fb7f495e9bc9b053f">simple_casadi_mpc::JITMPC::default_jit_options</a>();</div>
@@ -399,12 +419,12 @@ Customizing JIT compile options</h2>
 <div class="ttc" id="aclasssimple__casadi__mpc_1_1JITMPC_html"><div class="ttname"><a href="classsimple__casadi__mpc_1_1JITMPC.html">simple_casadi_mpc::JITMPC</a></div><div class="ttdoc">MPC variant that JIT-compiles the solver during construction.</div><div class="ttdef"><b>Definition</b> simple_casadi_mpc.hpp:893</div></div>
 <div class="ttc" id="aclasssimple__casadi__mpc_1_1JITMPC_html_a49b0b526bb70967fb7f495e9bc9b053f"><div class="ttname"><a href="classsimple__casadi__mpc_1_1JITMPC.html#a49b0b526bb70967fb7f495e9bc9b053f">simple_casadi_mpc::JITMPC::default_jit_options</a></div><div class="ttdeci">static casadi::Dict default_jit_options()</div><div class="ttdoc">Default JIT compile options (compiler / flags / verbose) passed to CasADi.</div><div class="ttdef"><b>Definition</b> simple_casadi_mpc.hpp:905</div></div>
 <div class="ttc" id="aclasssimple__casadi__mpc_1_1MPC_html_a153db7a81684bd671b703885f25fe1cd"><div class="ttname"><a href="classsimple__casadi__mpc_1_1MPC.html#a153db7a81684bd671b703885f25fe1cd">simple_casadi_mpc::MPC::default_ipopt_config</a></div><div class="ttdeci">static casadi::Dict default_ipopt_config()</div><div class="ttdoc">Reasonable defaults for the IPOPT backend (silent, warm-start enabled).</div><div class="ttdef"><b>Definition</b> simple_casadi_mpc.hpp:341</div></div>
-</div><!-- fragment --><h2><a class="anchor" id="autotoc_md19"></a>
+</div><!-- fragment --><h2><a class="anchor" id="autotoc_md20"></a>
 Runtime-tunable parameters</h2>
 <p><code>Problem::parameter(name, rows, cols)</code> returns a symbolic MX; update it at each solve:</p>
 <div class="fragment"><div class="line">mpc.solve(x, {{<span class="stringliteral">&quot;x_ref&quot;</span>, x_ref_dm}, {<span class="stringliteral">&quot;obstacle&quot;</span>, obs_dm}});</div>
 </div><!-- fragment --><p><code>reference_trajectory(name)</code> is a shorthand for <code>parameter(name, nx, horizon)</code> whose column <code>k</code> is consumed at stage <code>k</code>.</p>
-<h2><a class="anchor" id="autotoc_md20"></a>
+<h2><a class="anchor" id="autotoc_md21"></a>
 Performance knobs (<code>MPC</code> / <code>JITMPC</code> config)</h2>
 <p>Two simple-casadi-mpc-specific options can be passed in the config dict (consumed before being forwarded to CasADi):</p>
 <ul>
@@ -412,10 +432,10 @@ Performance knobs (<code>MPC</code> / <code>JITMPC</code> config)</h2>
 <li><code>expand_inner_functions</code> (default <code>true</code>): SX-expand per-stage F/L/G before mapping for faster JIT compilation.</li>
 </ul>
 <p>Both default to <code>true</code>. If your <code>stage_cost</code> has stage-dependent branching beyond per-stage parameter slicing, the library auto-falls-back to a per-stage loop (warning emitted) and you can also set <code>mapsum_stage_cost = false</code> explicitly.</p>
-<h2><a class="anchor" id="autotoc_md21"></a>
+<h2><a class="anchor" id="autotoc_md22"></a>
 Warm starting</h2>
 <p><code>MPC::solve</code> caches the previous <code>x</code>, <code>lam_x</code>, <code>lam_g</code> internally and feeds them to the next solve, so closed-loop simulations naturally benefit. Solver-side warm start is also enabled in <code>default_ipopt_config()</code> (<code>ipopt.warm_start_init_point = "yes"</code>).</p>
-<h1><a class="anchor" id="autotoc_md22"></a>
+<h1><a class="anchor" id="autotoc_md23"></a>
 Benchmarks</h1>
 <p>Runtime comparisons for cartpole MPC solver variants.</p>
 <div class="image">
@@ -427,7 +447,7 @@ Benchmarks</h1>
     <div class="image">
 <img src="bench_cartpole_jit_vs_compiled_mpc_solve_time_comparison.png" alt=""/>
 </div>
-    <h1><a class="anchor" id="autotoc_md23"></a>
+    <h1><a class="anchor" id="autotoc_md24"></a>
 Documentation</h1>
 <ol type="1">
 <li>Fetch submodules:</li>

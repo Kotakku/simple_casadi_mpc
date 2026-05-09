@@ -12,6 +12,7 @@ var classsimple__casadi__mpc_1_1Problem =
     ] ],
     [ "Problem", "classsimple__casadi__mpc_1_1Problem.html#a542614fa5717c152bd2b8141981a11f0", null ],
     [ "add_constraint", "classsimple__casadi__mpc_1_1Problem.html#a48bd6a0c0fb320ccce5feec458fd25c5", null ],
+    [ "add_soft_constraint", "classsimple__casadi__mpc_1_1Problem.html#a2858872818fbefe936d96c6b2a6a1c96", null ],
     [ "dt", "classsimple__casadi__mpc_1_1Problem.html#a88c733234eb769c6ff28944bcdd04bc2", null ],
     [ "dynamics", "classsimple__casadi__mpc_1_1Problem.html#afc334373a405d7e6218bff7be52e345e", null ],
     [ "dynamics_eval", "classsimple__casadi__mpc_1_1Problem.html#a37dd7ef94dad6fef274298f72f9fc658", null ],
@@ -29,7 +30,6 @@ var classsimple__casadi__mpc_1_1Problem =
     [ "set_state_upper_bound", "classsimple__casadi__mpc_1_1Problem.html#af65815727cac29b2d65d19782038c5b3", null ],
     [ "simulate", "classsimple__casadi__mpc_1_1Problem.html#a03355062ec312a00f962f856a5ebd64b", null ],
     [ "simulate", "classsimple__casadi__mpc_1_1Problem.html#ad91ac87976f58e3fa2180e86da231b3b", null ],
-    [ "soft_add_constraint", "classsimple__casadi__mpc_1_1Problem.html#a1a6e6e32b923b1e597ad92013fc17e91", null ],
     [ "stage_cost", "classsimple__casadi__mpc_1_1Problem.html#a8bc22c81d3a5a90943917b256299576f", null ],
     [ "terminal_cost", "classsimple__casadi__mpc_1_1Problem.html#afafe2a81c603ab5a839c1e550731132a", null ]
 ];

@@ -188,7 +188,7 @@ Public Types</h2></td></tr>
 <tr class="memitem:a52f49c0322fba7498c08b9c1238fd2a7" id="r_a52f49c0322fba7498c08b9c1238fd2a7"><td class="memItemLeft" align="right" valign="top">enum class &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a52f49c0322fba7498c08b9c1238fd2a7">ConstraintType</a> { <a class="el" href="#a52f49c0322fba7498c08b9c1238fd2a7a890ebf2ce6beb154deb673b3af2d03d4">Equality</a>
 , <a class="el" href="#a52f49c0322fba7498c08b9c1238fd2a7a8418f52f187e4c145c00f0f1a1fc787b">Inequality</a>
  }</td></tr>
-<tr class="memdesc:a52f49c0322fba7498c08b9c1238fd2a7"><td class="mdescLeft">&#160;</td><td class="mdescRight">Constraint kind passed to <a class="el" href="#a48bd6a0c0fb320ccce5feec458fd25c5">add_constraint</a> and <a class="el" href="#a1a6e6e32b923b1e597ad92013fc17e91">soft_add_constraint</a>.  <a href="#a52f49c0322fba7498c08b9c1238fd2a7">More...</a><br /></td></tr>
+<tr class="memdesc:a52f49c0322fba7498c08b9c1238fd2a7"><td class="mdescLeft">&#160;</td><td class="mdescRight">Constraint kind passed to <a class="el" href="#a48bd6a0c0fb320ccce5feec458fd25c5">add_constraint</a> and <a class="el" href="#a2858872818fbefe936d96c6b2a6a1c96">add_soft_constraint</a>.  <a href="#a52f49c0322fba7498c08b9c1238fd2a7">More...</a><br /></td></tr>
 <tr class="separator:a52f49c0322fba7498c08b9c1238fd2a7"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="pub-methods" name="pub-methods"></a>
@@ -235,9 +235,9 @@ void&#160;</td><td class="memItemRight" valign="bottom"><b>set_state_upper_bound
 <tr class="memitem:a48bd6a0c0fb320ccce5feec458fd25c5" id="r_a48bd6a0c0fb320ccce5feec458fd25c5"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a48bd6a0c0fb320ccce5feec458fd25c5">add_constraint</a> (<a class="el" href="#a52f49c0322fba7498c08b9c1238fd2a7">ConstraintType</a> type, std::function&lt; casadi::MX(casadi::MX, casadi::MX)&gt; constrinat)</td></tr>
 <tr class="memdesc:a48bd6a0c0fb320ccce5feec458fd25c5"><td class="mdescLeft">&#160;</td><td class="mdescRight">Add a hard path constraint applied at every stage.  <br /></td></tr>
 <tr class="separator:a48bd6a0c0fb320ccce5feec458fd25c5"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a1a6e6e32b923b1e597ad92013fc17e91" id="r_a1a6e6e32b923b1e597ad92013fc17e91"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a1a6e6e32b923b1e597ad92013fc17e91">soft_add_constraint</a> (<a class="el" href="#a52f49c0322fba7498c08b9c1238fd2a7">ConstraintType</a> type, std::function&lt; casadi::MX(casadi::MX, casadi::MX)&gt; constraint, double w1=1e3, double w2=0.0)</td></tr>
-<tr class="memdesc:a1a6e6e32b923b1e597ad92013fc17e91"><td class="mdescLeft">&#160;</td><td class="mdescRight">Add a soft path constraint with per-stage non-negative slack.  <br /></td></tr>
-<tr class="separator:a1a6e6e32b923b1e597ad92013fc17e91"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a2858872818fbefe936d96c6b2a6a1c96" id="r_a2858872818fbefe936d96c6b2a6a1c96"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a2858872818fbefe936d96c6b2a6a1c96">add_soft_constraint</a> (<a class="el" href="#a52f49c0322fba7498c08b9c1238fd2a7">ConstraintType</a> type, std::function&lt; casadi::MX(casadi::MX, casadi::MX)&gt; constraint, double w1=1e3, double w2=0.0)</td></tr>
+<tr class="memdesc:a2858872818fbefe936d96c6b2a6a1c96"><td class="mdescLeft">&#160;</td><td class="mdescRight">Add a soft path constraint with per-stage non-negative slack.  <br /></td></tr>
+<tr class="separator:a2858872818fbefe936d96c6b2a6a1c96"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a8bc22c81d3a5a90943917b256299576f" id="r_a8bc22c81d3a5a90943917b256299576f"><td class="memItemLeft" align="right" valign="top">virtual casadi::MX&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a8bc22c81d3a5a90943917b256299576f">stage_cost</a> (casadi::MX x, casadi::MX u, size_t k)</td></tr>
 <tr class="memdesc:a8bc22c81d3a5a90943917b256299576f"><td class="mdescLeft">&#160;</td><td class="mdescRight">Stage cost \(L(x_k, u_k, k;\,p)\) at step \(k\). Default returns 0.  <br /></td></tr>
 <tr class="separator:a8bc22c81d3a5a90943917b256299576f"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -309,7 +309,7 @@ class&#160;</td><td class="memItemRight" valign="bottom"><b>CompiledMPC</b></td>
 </table>
 </div><div class="memdoc">
 
-<p>Constraint kind passed to <a class="el" href="#a48bd6a0c0fb320ccce5feec458fd25c5">add_constraint</a> and <a class="el" href="#a1a6e6e32b923b1e597ad92013fc17e91">soft_add_constraint</a>. </p>
+<p>Constraint kind passed to <a class="el" href="#a48bd6a0c0fb320ccce5feec458fd25c5">add_constraint</a> and <a class="el" href="#a2858872818fbefe936d96c6b2a6a1c96">add_soft_constraint</a>. </p>
 <table class="fieldtable">
 <tr><th colspan="2">Enumerator</th></tr><tr><td class="fieldname"><a id="a52f49c0322fba7498c08b9c1238fd2a7a890ebf2ce6beb154deb673b3af2d03d4" name="a52f49c0322fba7498c08b9c1238fd2a7a890ebf2ce6beb154deb673b3af2d03d4"></a>Equality&#160;</td><td class="fielddoc"><p><code>g(x, u) = 0</code>. </p>
 </td></tr>
@@ -443,6 +443,68 @@ class&#160;</td><td class="memItemRight" valign="bottom"><b>CompiledMPC</b></td>
   <table class="params">
     <tr><td class="paramname">type</td><td><a class="el" href="#a52f49c0322fba7498c08b9c1238fd2a7a890ebf2ce6beb154deb673b3af2d03d4" title="g(x, u) = 0.">ConstraintType::Equality</a> ( \(g(x, u) = 0\)) or <a class="el" href="#a52f49c0322fba7498c08b9c1238fd2a7a8418f52f187e4c145c00f0f1a1fc787b" title="g(x, u) &lt;= 0.">ConstraintType::Inequality</a> ( \(g(x, u) \le 0\)). </td></tr>
     <tr><td class="paramname">constrinat</td><td>callable returning the constraint vector at one stage. </td></tr>
+  </table>
+  </dd>
+</dl>
+
+</div>
+</div>
+<a id="a2858872818fbefe936d96c6b2a6a1c96" name="a2858872818fbefe936d96c6b2a6a1c96"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a2858872818fbefe936d96c6b2a6a1c96">&#9670;&#160;</a></span>add_soft_constraint()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">void simple_casadi_mpc::Problem::add_soft_constraint </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="#a52f49c0322fba7498c08b9c1238fd2a7">ConstraintType</a></td>          <td class="paramname"><span class="paramname"><em>type</em>, </span></td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">std::function&lt; casadi::MX(casadi::MX, casadi::MX)&gt;</td>          <td class="paramname"><span class="paramname"><em>constraint</em>, </span></td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">double</td>          <td class="paramname"><span class="paramname"><em>w1</em><span class="paramdefsep"> = </span><span class="paramdefval">1e3</span>, </span></td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">double</td>          <td class="paramname"><span class="paramname"><em>w2</em><span class="paramdefsep"> = </span><span class="paramdefval">0.0</span></span>&#160;)</td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">inline</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Add a soft path constraint with per-stage non-negative slack. </p>
+<p>Introduces slack \(s \ge 0\) and adds the penalty  </p><p class="formulaDsp">
+\[
+  w_1 \mathbf{1}^\top s + \tfrac{1}{2}\, w_2\, s^\top s
+\]
+</p>
+<p> to the cost. The original constraint is relaxed as:</p><ul>
+<li>Inequality: \(g(x, u) \le 0 \;\to\; g - s \le 0\).</li>
+<li><p class="startli">Equality: \(h(x, u) = 0 \;\to\; |h| \le s\), i.e. \(h - s \le 0\) and \(-h - s \le
+0\).</p>
+<p class="startli">\(w_2 = 0\) (default) gives a pure L1 (exact) penalty; \(w_2 &gt; 0\) adds an L2 (smooth) term. Hard <code>add_constraint</code> and soft <code>add_soft_constraint</code> may be mixed on the same problem.</p>
+</li>
+</ul>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">type</td><td>constraint kind, see <a class="el" href="#a52f49c0322fba7498c08b9c1238fd2a7">ConstraintType</a>. </td></tr>
+    <tr><td class="paramname">constraint</td><td>callable returning the constraint vector at one stage. </td></tr>
+    <tr><td class="paramname">w1</td><td>L1 penalty weight \(w_1\) (default 1e3). </td></tr>
+    <tr><td class="paramname">w2</td><td>L2 penalty weight \(w_2\) (default 0.0). </td></tr>
   </table>
   </dd>
 </dl>
@@ -683,68 +745,6 @@ class&#160;</td><td class="memItemRight" valign="bottom"><b>CompiledMPC</b></td>
     <tr><td class="paramname">x0</td><td>current state, shape (nx,). </td></tr>
     <tr><td class="paramname">u</td><td>control held over the step. </td></tr>
     <tr><td class="paramname">dt</td><td>simulation step (independent of the <a class="el" href="classsimple__casadi__mpc_1_1MPC.html" title="Runtime MPC solver. Builds a CasADi NLP from a Problem and solves it on demand.">MPC</a> discretization step). </td></tr>
-  </table>
-  </dd>
-</dl>
-
-</div>
-</div>
-<a id="a1a6e6e32b923b1e597ad92013fc17e91" name="a1a6e6e32b923b1e597ad92013fc17e91"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a1a6e6e32b923b1e597ad92013fc17e91">&#9670;&#160;</a></span>soft_add_constraint()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">void simple_casadi_mpc::Problem::soft_add_constraint </td>
-          <td>(</td>
-          <td class="paramtype"><a class="el" href="#a52f49c0322fba7498c08b9c1238fd2a7">ConstraintType</a></td>          <td class="paramname"><span class="paramname"><em>type</em>, </span></td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">std::function&lt; casadi::MX(casadi::MX, casadi::MX)&gt;</td>          <td class="paramname"><span class="paramname"><em>constraint</em>, </span></td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">double</td>          <td class="paramname"><span class="paramname"><em>w1</em><span class="paramdefsep"> = </span><span class="paramdefval">1e3</span>, </span></td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">double</td>          <td class="paramname"><span class="paramname"><em>w2</em><span class="paramdefsep"> = </span><span class="paramdefval">0.0</span></span>&#160;)</td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">inline</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p>Add a soft path constraint with per-stage non-negative slack. </p>
-<p>Introduces slack \(s \ge 0\) and adds the penalty  </p><p class="formulaDsp">
-\[
-  w_1 \mathbf{1}^\top s + \tfrac{1}{2}\, w_2\, s^\top s
-\]
-</p>
-<p> to the cost. The original constraint is relaxed as:</p><ul>
-<li>Inequality: \(g(x, u) \le 0 \;\to\; g - s \le 0\).</li>
-<li><p class="startli">Equality: \(h(x, u) = 0 \;\to\; |h| \le s\), i.e. \(h - s \le 0\) and \(-h - s \le
-0\).</p>
-<p class="startli">\(w_2 = 0\) (default) gives a pure L1 (exact) penalty; \(w_2 &gt; 0\) adds an L2 (smooth) term. Hard <code>add_constraint</code> and soft <code>soft_add_constraint</code> may be mixed on the same problem.</p>
-</li>
-</ul>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramname">type</td><td>constraint kind, see <a class="el" href="#a52f49c0322fba7498c08b9c1238fd2a7">ConstraintType</a>. </td></tr>
-    <tr><td class="paramname">constraint</td><td>callable returning the constraint vector at one stage. </td></tr>
-    <tr><td class="paramname">w1</td><td>L1 penalty weight \(w_1\) (default 1e3). </td></tr>
-    <tr><td class="paramname">w2</td><td>L2 penalty weight \(w_2\) (default 0.0). </td></tr>
   </table>
   </dd>
 </dl>

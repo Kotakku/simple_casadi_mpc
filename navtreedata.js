@@ -31,26 +31,27 @@ var NAVTREE =
     [ "Solver overview", "index.html#autotoc_md4", null ],
     [ "Problem format", "index.html#autotoc_md5", [
       [ "Defining a problem", "index.html#autotoc_md6", null ],
-      [ "Usage for CompiledMPC via CMake", "index.html#autotoc_md7", null ]
+      [ "Hard path constraints", "index.html#autotoc_md7", null ],
+      [ "Soft path constraints", "index.html#autotoc_md8", null ],
+      [ "Usage for CompiledMPC via CMake", "index.html#autotoc_md9", null ]
     ] ],
-    [ "Examples", "index.html#autotoc_md8", [
-      [ "double_integrator_mpc_example", "index.html#autotoc_md9", null ],
-      [ "cartpole_mpc_example", "index.html#autotoc_md10", null ],
-      [ "inverted_pendulum_mpc_example", "index.html#autotoc_md11", null ],
-      [ "diff_drive_mpc_example", "index.html#autotoc_md12", null ],
-      [ "diff_drive_soft_constraint_example", "index.html#autotoc_md13", null ]
+    [ "Examples", "index.html#autotoc_md10", [
+      [ "double_integrator_mpc_example", "index.html#autotoc_md11", null ],
+      [ "cartpole_mpc_example", "index.html#autotoc_md12", null ],
+      [ "inverted_pendulum_mpc_example", "index.html#autotoc_md13", null ],
+      [ "diff_drive_mpc_example", "index.html#autotoc_md14", null ],
+      [ "diff_drive_soft_constraint_example", "index.html#autotoc_md15", null ]
     ] ],
-    [ "Soft constraints", "index.html#autotoc_md14", null ],
-    [ "Tips", "index.html#autotoc_md15", [
-      [ "Choosing a solver backend", "index.html#autotoc_md16", null ],
-      [ "Picking MPC vs JITMPC vs CompiledMPC", "index.html#autotoc_md17", null ],
-      [ "Customizing JIT compile options", "index.html#autotoc_md18", null ],
-      [ "Runtime-tunable parameters", "index.html#autotoc_md19", null ],
-      [ "Performance knobs (MPC / JITMPC config)", "index.html#autotoc_md20", null ],
-      [ "Warm starting", "index.html#autotoc_md21", null ]
+    [ "Tips", "index.html#autotoc_md16", [
+      [ "Choosing a solver backend", "index.html#autotoc_md17", null ],
+      [ "Picking MPC vs JITMPC vs CompiledMPC", "index.html#autotoc_md18", null ],
+      [ "Customizing JIT compile options", "index.html#autotoc_md19", null ],
+      [ "Runtime-tunable parameters", "index.html#autotoc_md20", null ],
+      [ "Performance knobs (MPC / JITMPC config)", "index.html#autotoc_md21", null ],
+      [ "Warm starting", "index.html#autotoc_md22", null ]
     ] ],
-    [ "Benchmarks", "index.html#autotoc_md22", null ],
-    [ "Documentation", "index.html#autotoc_md23", null ],
+    [ "Benchmarks", "index.html#autotoc_md23", null ],
+    [ "Documentation", "index.html#autotoc_md24", null ],
     [ "Namespaces", "namespaces.html", [
       [ "Namespace List", "namespaces.html", "namespaces_dup" ],
       [ "Namespace Members", "namespacemembers.html", [

@@ -9,13 +9,12 @@ var searchData=
   ['shared_5flibrary_5fpath_6',['shared_library_path',['../structsimple__casadi__mpc_1_1CompiledMPC_1_1CompiledLibraryConfig.html#a1aa18c0091584fdd43f7df8a7ea90287',1,'simple_casadi_mpc::CompiledMPC::CompiledLibraryConfig']]],
   ['simple_5fcasadi_5fmpc_7',['simple_casadi_mpc',['../namespacesimple__casadi__mpc.html',1,'simple_casadi_mpc'],['../index.html',1,'simple_casadi_mpc']]],
   ['simulate_8',['simulate',['../classsimple__casadi__mpc_1_1Problem.html#a03355062ec312a00f962f856a5ebd64b',1,'simple_casadi_mpc::Problem::simulate(Eigen::VectorXd x0, Eigen::MatrixXd u)'],['../classsimple__casadi__mpc_1_1Problem.html#ad91ac87976f58e3fa2180e86da231b3b',1,'simple_casadi_mpc::Problem::simulate(Eigen::VectorXd x0, Eigen::MatrixXd u, double dt)']]],
-  ['soft_20constraints_9',['Soft constraints',['../index.html#autotoc_md14',1,'']]],
-  ['soft_5fadd_5fconstraint_10',['soft_add_constraint',['../classsimple__casadi__mpc_1_1Problem.html#a1a6e6e32b923b1e597ad92013fc17e91',1,'simple_casadi_mpc::Problem']]],
-  ['solve_11',['solve',['../classsimple__casadi__mpc_1_1MPC.html#a54c984a30813dc477d42924dc0faeada',1,'simple_casadi_mpc::MPC::solve()'],['../classsimple__casadi__mpc_1_1JITMPC.html#a3beda9c8a21dfab4228a1f04d79c2026',1,'simple_casadi_mpc::JITMPC::solve()'],['../classsimple__casadi__mpc_1_1CompiledMPC.html#a3c6a4fbae739a703812564a016d69361',1,'simple_casadi_mpc::CompiledMPC::solve()']]],
-  ['solver_20backend_12',['Choosing a solver backend',['../index.html#autotoc_md16',1,'']]],
-  ['solver_20overview_13',['Solver overview',['../index.html#autotoc_md4',1,'']]],
-  ['solver_5fconfig_14',['solver_config',['../classsimple__casadi__mpc_1_1MPC.html#a2735d4ce83c8f218594e73dd43a9a656',1,'simple_casadi_mpc::MPC']]],
-  ['solver_5fname_15',['solver_name',['../classsimple__casadi__mpc_1_1MPC.html#af2980dbeb4200165c44138fcd5e96604',1,'simple_casadi_mpc::MPC']]],
-  ['stage_5fcost_16',['stage_cost',['../classsimple__casadi__mpc_1_1Problem.html#a8bc22c81d3a5a90943917b256299576f',1,'simple_casadi_mpc::Problem']]],
-  ['starting_17',['Warm starting',['../index.html#autotoc_md21',1,'']]]
+  ['soft_20path_20constraints_9',['Soft path constraints',['../index.html#autotoc_md8',1,'']]],
+  ['solve_10',['solve',['../classsimple__casadi__mpc_1_1MPC.html#a54c984a30813dc477d42924dc0faeada',1,'simple_casadi_mpc::MPC::solve()'],['../classsimple__casadi__mpc_1_1JITMPC.html#a3beda9c8a21dfab4228a1f04d79c2026',1,'simple_casadi_mpc::JITMPC::solve()'],['../classsimple__casadi__mpc_1_1CompiledMPC.html#a3c6a4fbae739a703812564a016d69361',1,'simple_casadi_mpc::CompiledMPC::solve()']]],
+  ['solver_20backend_11',['Choosing a solver backend',['../index.html#autotoc_md17',1,'']]],
+  ['solver_20overview_12',['Solver overview',['../index.html#autotoc_md4',1,'']]],
+  ['solver_5fconfig_13',['solver_config',['../classsimple__casadi__mpc_1_1MPC.html#a2735d4ce83c8f218594e73dd43a9a656',1,'simple_casadi_mpc::MPC']]],
+  ['solver_5fname_14',['solver_name',['../classsimple__casadi__mpc_1_1MPC.html#af2980dbeb4200165c44138fcd5e96604',1,'simple_casadi_mpc::MPC']]],
+  ['stage_5fcost_15',['stage_cost',['../classsimple__casadi__mpc_1_1Problem.html#a8bc22c81d3a5a90943917b256299576f',1,'simple_casadi_mpc::Problem']]],
+  ['starting_16',['Warm starting',['../index.html#autotoc_md22',1,'']]]
 ];
