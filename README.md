@@ -50,8 +50,8 @@ $$
 \text{s.t.} \quad
 & x_0 = x_\text{init}, \\
 & x_{k+1} = f_d(x_k, u_k;\,p), && k = 0, \dots, N-1, \\
-& g_\text{eq}(x_k, u_k;\,p) = 0, && k = 0, \dots, N-1, \\
-& g_\text{ineq}(x_k, u_k;\,p) \le 0, && k = 0, \dots, N-1, \\
+& g_\text{eq}^{(i)}(x_k, u_k;\,p) = 0, && k = 0, \dots, N-1,\; i = 1, \dots, n_\text{eq}, \\
+& g_\text{ineq}^{(j)}(x_k, u_k;\,p) \le 0, && k = 0, \dots, N-1,\; j = 1, \dots, n_\text{ineq}, \\
 & x_{\text{lb},k} \le x_k \le x_{\text{ub},k}, && k = 0, \dots, N, \\
 & u_{\text{lb},k} \le u_k \le u_{\text{ub},k}, && k = 0, \dots, N-1.
 \end{aligned}
@@ -59,19 +59,19 @@ $$
 
 Symbol mapping:
 
-| Symbol                              | Code                                                                           |
-| ----------------------------------- | ------------------------------------------------------------------------------ |
-| $x_k \in \mathbb{R}^{n_x}$          | state at stage $k$ (`Problem::nx()`)                                           |
-| $u_k \in \mathbb{R}^{n_u}$          | control at stage $k$ (`Problem::nu()`)                                         |
-| $N$                                 | prediction horizon (`Problem::horizon()`)                                      |
-| $L(x_k, u_k, k;\,p)$                | `Problem::stage_cost(x, u, k)`                                                 |
-| $\Phi(x_N;\,p)$                     | `Problem::terminal_cost(x)`                                                    |
-| $f_d$                               | discretization of `Problem::dynamics(x, u)` per `DynamicsType`                 |
-| $g_\text{eq},\,g_\text{ineq}$       | `Problem::add_constraint(Equality / Inequality, ...)`                          |
-| $x_{\text{lb},k},\,x_{\text{ub},k}$ | `Problem::set_state_bound(...)`                                                |
-| $u_{\text{lb},k},\,u_{\text{ub},k}$ | `Problem::set_input_bound(...)`                                                |
-| $p$                                 | runtime parameters via `Problem::parameter(...)` / `reference_trajectory(...)` |
-| $x_\text{init}$                     | first argument to `MPC::solve(x, ...)`                                         |
+| Symbol                                    | Code                                                                                                                     |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| $x_k \in \mathbb{R}^{n_x}$                | state at stage $k$ (`Problem::nx()`)                                                                                     |
+| $u_k \in \mathbb{R}^{n_u}$                | control at stage $k$ (`Problem::nu()`)                                                                                   |
+| $N$                                       | prediction horizon (`Problem::horizon()`)                                                                                |
+| $L(x_k, u_k, k;\,p)$                      | `Problem::stage_cost(x, u, k)`                                                                                           |
+| $\Phi(x_N;\,p)$                           | `Problem::terminal_cost(x)`                                                                                              |
+| $f_d$                                     | discretization of `Problem::dynamics(x, u)` per `DynamicsType`                                                           |
+| $g_\text{eq}^{(i)},\,g_\text{ineq}^{(j)}$ | each call to `Problem::add_constraint(Equality / Inequality, ...)` adds one $g_\text{eq}^{(i)}$ or $g_\text{ineq}^{(j)}$ |
+| $x_{\text{lb},k},\,x_{\text{ub},k}$       | `Problem::set_state_bound(...)`                                                                                          |
+| $u_{\text{lb},k},\,u_{\text{ub},k}$       | `Problem::set_input_bound(...)`                                                                                          |
+| $p$                                       | runtime parameters via `Problem::parameter(...)` / `reference_trajectory(...)`                                           |
+| $x_\text{init}$                           | first argument to `MPC::solve(x, ...)`                                                                                   |
 
 For `DynamicsType::ContinuesForwardEuler`, `ContinuesModifiedEuler`, and `ContinuesRK4`, $f_d$ is the corresponding one-step integrator applied to the user-supplied $\dot{x} = f(x, u)$ with step size $\Delta t$. For `DynamicsType::Discretized` the user supplies $f_d$ directly.
 
