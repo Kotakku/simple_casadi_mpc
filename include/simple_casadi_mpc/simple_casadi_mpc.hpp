@@ -301,7 +301,30 @@ public:
     const size_t nu = prob_->nu();
     const size_t N = prob_->horizon();
 
-    build_with_map(nx, nu, N);
+    // mapsum_stage_cost: build the stage-cost sum as a MapSum so first-order AD
+    //   stays loop-shaped (smaller derivative graph).
+    // expand_inner_functions: SX-expand per-stage F/L/G before .map(N) so the
+    //   inner per-stage AD operates on flat SX.
+    bool mapsum_stage_cost = true;
+    bool expand_inner_functions = true;
+    {
+      auto it = config_.find("mapsum_stage_cost");
+      if (it != config_.end()) {
+        mapsum_stage_cost = static_cast<bool>(it->second);
+        config_.erase(it);
+      }
+      it = config_.find("expand_inner_functions");
+      if (it != config_.end()) {
+        expand_inner_functions = static_cast<bool>(it->second);
+        config_.erase(it);
+      }
+    }
+
+    build_with_map(nx, nu, N, mapsum_stage_cost, expand_inner_functions);
+
+    if (expand_inner_functions) {
+      config_["expand"] = false;
+    }
 
     if (equality_required(solver_name_, config_)) {
       // Convert std::vector<bool> to std::vector<casadi_int> for CasADi
@@ -384,7 +407,8 @@ protected:
   casadi::DM lam_g0_;
 
   // Build NLP with map (for expand=false, faster JIT compilation)
-  void build_with_map(size_t nx, size_t nu, casadi_int N) {
+  void build_with_map(size_t nx, size_t nu, casadi_int N, bool mapsum_stage_cost = true,
+                      bool expand_inner_functions = true) {
     using namespace casadi;
     double inf = std::numeric_limits<double>::infinity(); // Make sure inf is defined
 
@@ -437,12 +461,15 @@ protected:
       break;
     }
     Function F("F_dynamics", {x_k, u_k}, {x_next});
+    if (expand_inner_functions)
+      F = F.expand(F.name(), {{"cse", true}});
 
-    // Stage cost function (will be called individually for each horizon step with correct k index)
     std::vector<MX> L_inputs = {x_k, u_k};
     L_inputs.insert(L_inputs.end(), params_mx.begin(), params_mx.end());
     MX stage_cost = prob_->stage_cost(x_k, u_k, 0);
     Function L("L_stage_cost", L_inputs, {stage_cost});
+    if (expand_inner_functions)
+      L = L.expand(L.name(), {{"cse", true}});
 
     // 制約一覧
     std::vector<MX> g_k_vec;
@@ -498,26 +525,101 @@ protected:
     }
     G_inputs.insert(G_inputs.end(), params_mx.begin(), params_mx.end());
     Function G_constraints("G_constraints", G_inputs, {g_k});
+    if (expand_inner_functions)
+      G_constraints = G_constraints.expand(G_constraints.name(), {{"cse", true}});
 
     // 3. Map application
     MX X_next_cal = F.map(N)(std::vector<MX>{X(Slice(), Slice(0, N)), U})[0];
 
-    // Calculate stage costs individually for each horizon step to support trajectory-based
-    // references This allows each step to use the correct index k in stage_cost()
-    std::vector<MX> stage_costs;
-    stage_costs.reserve(N);
-    for (casadi_int i = 0; i < N; ++i) {
-      std::vector<MX> stage_cost_inputs = {Xs[i], Us[i]};
-      stage_cost_inputs.insert(stage_cost_inputs.end(), params_mx.begin(), params_mx.end());
+    // Stage cost: when mapsum_stage_cost is set, replace each per-stage param
+    // p (shape rows×N) by repmat(col_sym, 1, N) inside the user's stage_cost
+    // so p(:, k) collapses to a single column symbol; build the cost via
+    // MapSum. Verify k-independence by comparing the substituted expression at
+    // every k against k=0; on mismatch (k-dependent branching beyond param
+    // slicing), fall back to the per-stage loop.
+    bool mapsum_safe = mapsum_stage_cost;
+    std::vector<MX> col_syms;
+    std::vector<size_t> per_stage_idx;
+    MX cost_substituted;
 
-      // Call stage_cost with the correct horizon index k=i
-      MX cost_i = prob_->stage_cost(Xs[i], Us[i], i);
+    if (mapsum_safe) {
+      for (size_t p = 0; p < params_mx.size(); ++p) {
+        if (params_mx[p].size2() == N) {
+          per_stage_idx.push_back(p);
+          col_syms.push_back(MX::sym(params_mx[p].name() + "_col", params_mx[p].size1(), 1));
+        }
+      }
 
-      // Create function to maintain parameter dependencies
-      Function L_i("L_stage_cost_" + std::to_string(i), stage_cost_inputs, {cost_i});
-      stage_costs.push_back(L_i(stage_cost_inputs)[0]);
+      std::vector<MX> per_stage_orig;
+      std::vector<MX> per_stage_magic;
+      per_stage_orig.reserve(per_stage_idx.size());
+      per_stage_magic.reserve(per_stage_idx.size());
+      for (size_t i = 0; i < per_stage_idx.size(); ++i) {
+        per_stage_orig.push_back(params_mx[per_stage_idx[i]]);
+        per_stage_magic.push_back(repmat(col_syms[i], 1, N));
+      }
+      cost_substituted =
+          per_stage_orig.empty()
+              ? stage_cost
+              : MX::substitute(std::vector<MX>{stage_cost}, per_stage_orig, per_stage_magic)[0];
+
+      for (casadi_int k = 1; k < N; ++k) {
+        MX cost_at_k = prob_->stage_cost(x_k, u_k, k);
+        MX cost_k_subst =
+            per_stage_orig.empty()
+                ? cost_at_k
+                : MX::substitute(std::vector<MX>{cost_at_k}, per_stage_orig, per_stage_magic)[0];
+        if (!MX::is_equal(cost_substituted, cost_k_subst, /*depth*/ 100)) {
+          casadi_warning("mapsum_stage_cost requested but stage_cost depends on k "
+                         "beyond per-stage parameter slicing; falling back to "
+                         "per-stage loop to preserve correctness.");
+          mapsum_safe = false;
+          break;
+        }
+      }
     }
-    MX J_stage = sum(vertcat(stage_costs));
+
+    MX J_stage;
+    if (mapsum_safe) {
+      // Per-stage params -> col_syms (Map iterates columns); broadcast params
+      // are marked via reduce_in (Map repeats them).
+      std::vector<MX> L_subst_inputs = {x_k, u_k};
+      std::vector<casadi_int> reduce_in;
+      size_t next_col = 0;
+      for (size_t p = 0; p < params_mx.size(); ++p) {
+        casadi_int input_idx = static_cast<casadi_int>(2 + p);
+        bool is_per_stage = (next_col < per_stage_idx.size() && per_stage_idx[next_col] == p);
+        if (is_per_stage) {
+          L_subst_inputs.push_back(col_syms[next_col]);
+          ++next_col;
+        } else {
+          L_subst_inputs.push_back(params_mx[p]);
+          reduce_in.push_back(input_idx);
+        }
+      }
+      Function L_subst("L_stage_subst", L_subst_inputs, {cost_substituted});
+      if (expand_inner_functions)
+        L_subst = L_subst.expand(L_subst.name(), {{"cse", true}});
+
+      std::vector<casadi_int> reduce_out = {0};
+      Function L_mapsum = L_subst.map("L_stage_mapsum", "serial", N, reduce_in, reduce_out, Dict());
+      std::vector<MX> map_inputs = {X(Slice(), Slice(0, N)), U};
+      for (auto &param : params_mx) {
+        map_inputs.push_back(param);
+      }
+      J_stage = L_mapsum(map_inputs)[0];
+    } else {
+      std::vector<MX> stage_costs;
+      stage_costs.reserve(N);
+      for (casadi_int i = 0; i < N; ++i) {
+        std::vector<MX> stage_cost_inputs = {Xs[i], Us[i]};
+        stage_cost_inputs.insert(stage_cost_inputs.end(), params_mx.begin(), params_mx.end());
+        MX cost_i = prob_->stage_cost(Xs[i], Us[i], i);
+        Function L_i("L_stage_cost_" + std::to_string(i), stage_cost_inputs, {cost_i});
+        stage_costs.push_back(L_i(stage_cost_inputs)[0]);
+      }
+      J_stage = sum(vertcat(stage_costs));
+    }
 
     // Terminal cost
     MX terminal_val = prob_->terminal_cost(Xs[N]);
@@ -815,10 +917,8 @@ public:
     fs::create_directories(out_dir);
     fs::path c_path = out_dir / (export_solver_name + ".c");
 
-    casadi::Dict solver_cfg = solver_config;
-    if (MPC::equality_required(solver_name, solver_cfg)) {
-      solver_cfg["equality"] = mpc.equality_flags();
-    }
+    // Use the MPC-preprocessed config (equality flags applied, custom flags popped).
+    casadi::Dict solver_cfg = mpc.solver_config();
 
     casadi::Function solver =
         casadi::nlpsol(export_solver_name, solver_name, mpc.casadi_prob(), solver_cfg);
