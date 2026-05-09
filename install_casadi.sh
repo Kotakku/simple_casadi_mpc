@@ -6,9 +6,9 @@ sudo apt install -y git cmake gcc g++ gfortran pkg-config liblapack-dev pkg-conf
 # Clone CasADi repository
 git clone https://github.com/casadi/casadi.git casadi
 
-cd casadi
+cd casadi || exit 1
 mkdir -p build
-cd build
+cd build || exit 1
 
 ARGS=""
 
@@ -287,8 +287,9 @@ ARGS="$ARGS -DWITH_DEPRECATED_FEATURES=OFF"
 #==============================================================================
 # Build and Install
 #==============================================================================
+# shellcheck disable=SC2086
 cmake .. $ARGS
-make -j$(nproc)
+make -j"$(nproc)"
 sudo make install
 
 # Update library cache so linker can find libcasadi

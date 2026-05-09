@@ -3,3 +3,4 @@ MD013: false # line-length
 MD024: false # no-duplicate-heading
 MD033: false # no-inline-html
 MD041: false # first-line-h1
+MD045: false # no-alt-text
