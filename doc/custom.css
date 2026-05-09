@@ -21,3 +21,9 @@
 .repo-link:hover {
   filter: brightness(0.95);
 }
+
+/* Markdown tables: stretch to content width like surrounding text/code blocks
+   instead of shrinking to the minimum cell width. */
+table.markdownTable {
+  width: 100%;
+}
