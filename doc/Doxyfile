@@ -41,3 +41,6 @@ INLINE_SOURCES         = NO
 
 QUIET                  = YES
 WARN_IF_UNDOCUMENTED   = NO
+
+USE_MATHJAX            = YES
+MATHJAX_VERSION        = MathJax_3
