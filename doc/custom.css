@@ -23,7 +23,13 @@
 }
 
 /* Markdown tables: stretch to content width like surrounding text/code blocks
-   instead of shrinking to the minimum cell width. */
+   instead of shrinking to the minimum cell width. The last-column
+   width:100% forces the trailing column to absorb the remaining space so
+   the rendered tbody matches the outer table width. */
 table.markdownTable {
+  width: 100%;
+}
+table.markdownTable th:last-child,
+table.markdownTable td:last-child {
   width: 100%;
 }
