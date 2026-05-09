@@ -43,7 +43,7 @@ Limitation for `CompiledMPC`: the solver backend (IPOPT/FATROP/...) and its para
 
 The library solves the following discrete-time finite-horizon optimal control problem at every `solve()` call:
 
-$$
+```math
 \begin{aligned}
 \min_{\substack{x_0,\dots,x_N \\ u_0,\dots,u_{N-1}}} \quad
 & \sum_{k=0}^{N-1} L(x_k, u_k, k;\,p) \;+\; \Phi(x_N;\,p) \\
@@ -55,27 +55,27 @@ $$
 & x_{\text{lb},k} \le x_k \le x_{\text{ub},k}, && k = 0, \dots, N, \\
 & u_{\text{lb},k} \le u_k \le u_{\text{ub},k}, && k = 0, \dots, N-1.
 \end{aligned}
-$$
+```
 
 Symbol mapping:
 
-| Symbol                                    | Code                                                                                                                     |
-| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| $x_k \in \mathbb{R}^{n_x}$                | state at stage $k$ (`Problem::nx()`)                                                                                     |
-| $u_k \in \mathbb{R}^{n_u}$                | control at stage $k$ (`Problem::nu()`)                                                                                   |
-| $N$                                       | prediction horizon (`Problem::horizon()`)                                                                                |
-| $L(x_k, u_k, k;\,p)$                      | `Problem::stage_cost(x, u, k)`                                                                                           |
-| $\Phi(x_N;\,p)$                           | `Problem::terminal_cost(x)`                                                                                              |
-| $f_d$                                     | discretization of `Problem::dynamics(x, u)` per `DynamicsType`                                                           |
-| $g_\text{eq}^{(i)},\,g_\text{ineq}^{(j)}$ | each call to `Problem::add_constraint(Equality / Inequality, ...)` adds one $g_\text{eq}^{(i)}$ or $g_\text{ineq}^{(j)}$ |
-| $x_{\text{lb},k},\,x_{\text{ub},k}$       | `Problem::set_state_bound(...)`                                                                                          |
-| $u_{\text{lb},k},\,u_{\text{ub},k}$       | `Problem::set_input_bound(...)`                                                                                          |
-| $p$                                       | runtime parameters via `Problem::parameter(...)` / `reference_trajectory(...)`                                           |
-| $x_\text{init}$                           | first argument to `MPC::solve(x, ...)`                                                                                   |
+| Symbol                       | Code                                                                                                       |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `x_k ∈ ℝ^{n_x}`              | state at stage `k` (`Problem::nx()`)                                                                       |
+| `u_k ∈ ℝ^{n_u}`              | control at stage `k` (`Problem::nu()`)                                                                     |
+| `N`                          | prediction horizon (`Problem::horizon()`)                                                                  |
+| `L(x_k, u_k, k; p)`          | `Problem::stage_cost(x, u, k)`                                                                             |
+| `Φ(x_N; p)`                  | `Problem::terminal_cost(x)`                                                                                |
+| `f_d`                        | discretization of `Problem::dynamics(x, u)` per `DynamicsType`                                             |
+| `g_eq^{(i)}`, `g_ineq^{(j)}` | each call to `Problem::add_constraint(Equality / Inequality, ...)` adds one `g_eq^{(i)}` or `g_ineq^{(j)}` |
+| `x_{lb,k}`, `x_{ub,k}`       | `Problem::set_state_bound(...)`                                                                            |
+| `u_{lb,k}`, `u_{ub,k}`       | `Problem::set_input_bound(...)`                                                                            |
+| `p`                          | runtime parameters via `Problem::parameter(...)` / `reference_trajectory(...)`                             |
+| `x_init`                     | first argument to `MPC::solve(x, ...)`                                                                     |
 
-For `DynamicsType::ContinuesForwardEuler`, `ContinuesModifiedEuler`, and `ContinuesRK4`, $f_d$ is the corresponding one-step integrator applied to the user-supplied $\dot{x} = f(x, u)$ with step size $\Delta t$. For `DynamicsType::Discretized` the user supplies $f_d$ directly.
+For `DynamicsType::ContinuesForwardEuler`, `ContinuesModifiedEuler`, and `ContinuesRK4`, `f_d` is the corresponding one-step integrator applied to the user-supplied continuous dynamics `dx/dt = f(x, u)` with step size `Δt`. For `DynamicsType::Discretized` the user supplies `f_d` directly.
 
-Soft constraints add slack $s \ge 0$ and a penalty term to the cost; see [Soft constraints](#soft-constraints) below.
+Soft constraints add slack `s ≥ 0` and a penalty term to the cost; see [Soft constraints](#soft-constraints) below.
 
 ### Defining a problem
 
