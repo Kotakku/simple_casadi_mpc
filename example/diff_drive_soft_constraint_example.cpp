@@ -12,7 +12,7 @@ using namespace pybind11::literals;
 
 class DiffDriveSoftProb : public simple_casadi_mpc::Problem {
 public:
-  // soft=true で障害物制約を soft_add_constraint で追加する。
+  // soft=true で障害物制約を add_soft_constraint で追加する。
   DiffDriveSoftProb(bool soft, double w1, double w2)
       : Problem(DynamicsType::ContinuesRK4, 5, 2, 40, 0.1) {
     using namespace casadi;
@@ -30,7 +30,7 @@ public:
     auto obs =
         std::bind(&DiffDriveSoftProb::obstacle, this, std::placeholders::_1, std::placeholders::_2);
     if (soft) {
-      soft_add_constraint(ConstraintType::Inequality, obs, w1, w2);
+      add_soft_constraint(ConstraintType::Inequality, obs, w1, w2);
     } else {
       add_constraint(ConstraintType::Inequality, obs);
     }
