@@ -21,3 +21,20 @@
 .repo-link:hover {
   filter: brightness(0.95);
 }
+
+/* Markdown tables: stretch to content width like surrounding text/code blocks.
+   doxygen-awesome forces both the <table> and its <tbody> to
+   `display: inline-block` (see `.contents table:not(...)` and
+   `.contents table:not(...) tbody` in doxygen-awesome.css), which collapses
+   the rendered width to the natural cell width even with width:100%.
+   Restore the proper table / row-group display so cells distribute across
+   the full table width. */
+table.markdownTable {
+  display: table !important;
+  width: 100%;
+  max-width: none !important;
+}
+table.markdownTable tbody {
+  display: table-row-group !important;
+  max-width: none !important;
+}

@@ -1,15 +1,9 @@
 var annotated_dup =
 [
-    [ "simple_casadi_mpc", null, [
+    [ "simple_casadi_mpc", "namespacesimple__casadi__mpc.html", [
       [ "CompiledMPC", "classsimple__casadi__mpc_1_1CompiledMPC.html", "classsimple__casadi__mpc_1_1CompiledMPC" ],
-      [ "JITMPC", "classsimple__casadi__mpc_1_1JITMPC.html", null ],
-      [ "MPC", "classsimple__casadi__mpc_1_1MPC.html", null ],
-      [ "Problem", "classsimple__casadi__mpc_1_1Problem.html", null ]
-    ] ],
-    [ "CartpoleProb", "classCartpoleProb.html", null ],
-    [ "DiffDriveProb", "classDiffDriveProb.html", null ],
-    [ "DiffDriveSoftProb", "classDiffDriveSoftProb.html", null ],
-    [ "DoubleIntegratorProb", "classDoubleIntegratorProb.html", null ],
-    [ "InvertedPendulumProb", "classInvertedPendulumProb.html", null ],
-    [ "Trajectory", "structTrajectory.html", null ]
+      [ "JITMPC", "classsimple__casadi__mpc_1_1JITMPC.html", "classsimple__casadi__mpc_1_1JITMPC" ],
+      [ "MPC", "classsimple__casadi__mpc_1_1MPC.html", "classsimple__casadi__mpc_1_1MPC" ],
+      [ "Problem", "classsimple__casadi__mpc_1_1Problem.html", "classsimple__casadi__mpc_1_1Problem" ]
+    ] ]
 ];
