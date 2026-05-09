@@ -303,6 +303,18 @@ Two simple-casadi-mpc-specific options can be passed in the config dict (consume
 
 Both default to `true`. If your `stage_cost` has stage-dependent branching beyond per-stage parameter slicing, the library auto-falls-back to a per-stage loop (warning emitted) and you can also set `mapsum_stage_cost = false` explicitly.
 
+### Variable time step
+
+`Problem(DynamicsType, nx, nu, horizon, dt)` uses a uniform $\Delta t$. To use a per-stage step (e.g. coarse-to-fine schedules), pass a `std::vector<double>` of length `horizon` instead:
+
+```cpp
+std::vector<double> dts(N);
+for (size_t k = 0; k < N; ++k) dts[k] = 0.02 + 0.005 * k; // refine the prediction
+MyProblem(N, dts);
+```
+
+The continuous integrator (`f_d`) is built with $\Delta t_k$ as a symbolic per-stage input, so the solver still uses one shared dynamics function. `Problem::dt()` returns the stage-0 step for backward compatibility, while `Problem::dt(k)` and `Problem::dts()` give per-stage access. `Problem::has_uniform_dt()` reports whether all stages share the same step.
+
 ### Warm starting
 
 `MPC::solve` caches the previous `x`, `lam_x`, `lam_g` internally and feeds them to the next solve, so closed-loop simulations naturally benefit. Solver-side warm start is also enabled in `default_ipopt_config()` (`ipopt.warm_start_init_point = "yes"`).
