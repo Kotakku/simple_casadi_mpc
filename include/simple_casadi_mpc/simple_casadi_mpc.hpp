@@ -89,14 +89,14 @@ public:
 
   /// @brief Symbolic dynamics, must be overridden by the user.
   ///
-  /// For a continuous DynamicsType, return `dx/dt` given the current `(x, u)`;
-  /// the discretization is applied automatically by the chosen
-  /// @ref DynamicsType.
-  /// For DynamicsType::Discretized, return the next state `x_{k+1}` directly.
+  /// For a continuous DynamicsType, return \f$\frac{dx}{dt} = f(x, u)\f$ given
+  /// the current \f$(x, u)\f$; the discretization is applied automatically by
+  /// the chosen @ref DynamicsType.
+  /// For DynamicsType::Discretized, return the next state \f$x_{k+1}\f$ directly.
   ///
-  /// @param x state, shape (nx, 1).
-  /// @param u input, shape (nu, 1).
-  /// @return either `dx/dt` (continuous) or `x_{k+1}` (discrete), shape (nx, 1).
+  /// @param x state \f$x_k \in \mathbb{R}^{n_x}\f$.
+  /// @param u input \f$u_k \in \mathbb{R}^{n_u}\f$.
+  /// @return either \f$\frac{dx}{dt}\f$ (continuous) or \f$x_{k+1}\f$ (discrete).
   virtual casadi::MX dynamics(casadi::MX x, casadi::MX u) = 0;
 
   /// @brief Evaluate @ref dynamics at numeric `(x, u)`. Useful for plant simulation.
@@ -147,7 +147,7 @@ public:
     return x0;
   }
 
-  /// @brief Set per-stage input bounds `lb <= u_k <= ub`.
+  /// @brief Set per-stage input bounds \f$u_{\text{lb},k} \le u_k \le u_{\text{ub},k}\f$.
   /// @param lb lower bound, shape (nu,).
   /// @param ub upper bound, shape (nu,).
   /// @param start first stage (inclusive), or -1 for all stages.
@@ -176,8 +176,8 @@ public:
     }
   }
 
-  /// @brief Set per-stage state bounds `lb <= x_k <= ub`. Range semantics match @ref
-  /// set_input_bound.
+  /// @brief Set per-stage state bounds \f$x_{\text{lb},k} \le x_k \le x_{\text{ub},k}\f$.
+  ///        Range semantics match @ref set_input_bound.
   void set_state_bound(Eigen::VectorXd lb, Eigen::VectorXd ub, int start = -1, int end = -1) {
     std::tie(start, end) = index_range(start, end);
     for (int i = start; i < end; i++) {
@@ -202,8 +202,8 @@ public:
   }
 
   /// @brief Add a hard path constraint applied at every stage.
-  /// @param type ConstraintType::Equality (`g(x,u) = 0`) or
-  ///        ConstraintType::Inequality (`g(x,u) <= 0`).
+  /// @param type ConstraintType::Equality (\f$g(x, u) = 0\f$) or
+  ///        ConstraintType::Inequality (\f$g(x, u) \le 0\f$).
   /// @param constrinat callable returning the constraint vector at one stage.
   void add_constraint(ConstraintType type,
                       std::function<casadi::MX(casadi::MX, casadi::MX)> constrinat) {
@@ -216,30 +216,33 @@ public:
 
   /// @brief Add a soft path constraint with per-stage non-negative slack.
   ///
-  /// Introduces slack `s >= 0` and adds the penalty
-  ///   `w1 * 1^T s + 0.5 * w2 * s^T s`
+  /// Introduces slack \f$s \ge 0\f$ and adds the penalty
+  /// \f[
+  ///   w_1 \mathbf{1}^\top s + \tfrac{1}{2}\, w_2\, s^\top s
+  /// \f]
   /// to the cost. The original constraint is relaxed as:
-  /// - Inequality `g(x, u) <= 0`  ->  `g - s <= 0`.
-  /// - Equality   `h(x, u) =  0`  ->  `|h| <= s`, i.e. `h - s <= 0` and `-h - s <= 0`.
+  /// - Inequality: \f$g(x, u) \le 0 \;\to\; g - s \le 0\f$.
+  /// - Equality:   \f$h(x, u) = 0 \;\to\; |h| \le s\f$, i.e. \f$h - s \le 0\f$ and \f$-h - s \le
+  /// 0\f$.
   ///
-  /// `w2 == 0` (default) gives a pure L1 (exact) penalty; `w2 > 0` adds an L2
-  /// (smooth) term. Hard `add_constraint` and soft `soft_add_constraint` may
-  /// be mixed on the same problem.
+  /// \f$w_2 = 0\f$ (default) gives a pure L1 (exact) penalty; \f$w_2 > 0\f$
+  /// adds an L2 (smooth) term. Hard `add_constraint` and soft
+  /// `soft_add_constraint` may be mixed on the same problem.
   ///
   /// @param type     constraint kind, see @ref ConstraintType.
   /// @param constraint callable returning the constraint vector at one stage.
-  /// @param w1       L1 penalty weight (default 1e3).
-  /// @param w2       L2 penalty weight (default 0.0).
+  /// @param w1       L1 penalty weight \f$w_1\f$ (default 1e3).
+  /// @param w2       L2 penalty weight \f$w_2\f$ (default 0.0).
   void soft_add_constraint(ConstraintType type,
                            std::function<casadi::MX(casadi::MX, casadi::MX)> constraint,
                            double w1 = 1e3, double w2 = 0.0) {
     soft_constraints_.push_back({type, constraint, w1, w2});
   }
 
-  /// @brief Stage cost at step `k`. Default returns 0.
+  /// @brief Stage cost \f$L(x_k, u_k, k;\,p)\f$ at step \f$k\f$. Default returns 0.
   /// @param x state at stage k, shape (nx, 1).
   /// @param u input at stage k, shape (nu, 1).
-  /// @param k stage index in [0, horizon).
+  /// @param k stage index in \f$[0, N)\f$.
   virtual casadi::MX stage_cost(casadi::MX x, casadi::MX u, size_t k) {
     (void)x;
     (void)u;
@@ -247,7 +250,7 @@ public:
     return 0;
   }
 
-  /// @brief Terminal cost evaluated at `x_N`. Default returns 0.
+  /// @brief Terminal cost \f$\Phi(x_N;\,p)\f$ evaluated at \f$x_N\f$. Default returns 0.
   virtual casadi::MX terminal_cost(casadi::MX x) {
     (void)x;
     return 0;
@@ -274,7 +277,7 @@ public:
     return param;
   }
 
-  /// @brief Convenience wrapper of @ref parameter with shape `(nx, horizon)`.
+  /// @brief Convenience wrapper of @ref parameter with shape \f$(n_x, N)\f$.
   ///
   /// Each column is the reference state at the corresponding stage, suitable
   /// for trajectory tracking inside `stage_cost`.
