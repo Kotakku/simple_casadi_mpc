@@ -3,7 +3,10 @@ cmake_minimum_required(VERSION 3.14)
 option(BUILD_EXAMPLES "Build example executables" OFF)
 option(BUILD_BENCHMARKS "Build benchmark executables" OFF)
 
-project(simple_casadi_mpc CXX)
+project(
+  simple_casadi_mpc
+  VERSION 0.1.0 # x-release-please-version
+  LANGUAGES CXX)
 
 find_package(casadi REQUIRED)
 find_package(Eigen3 REQUIRED)
@@ -53,9 +56,16 @@ configure_package_config_file(
   INSTALL_DESTINATION ${SIMPLE_CASADI_MPC_CMAKE_INSTALL_DIR}
   NO_CHECK_REQUIRED_COMPONENTS_MACRO)
 
-install(FILES ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}Config.cmake
-              ${CMAKE_CURRENT_SOURCE_DIR}/cmake/simple_casadi_mpc_codegen.cmake
-        DESTINATION ${SIMPLE_CASADI_MPC_CMAKE_INSTALL_DIR})
+write_basic_package_version_file(
+  ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}ConfigVersion.cmake
+  VERSION ${PROJECT_VERSION}
+  COMPATIBILITY SameMajorVersion)
+
+install(
+  FILES ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}Config.cmake
+        ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}ConfigVersion.cmake
+        ${CMAKE_CURRENT_SOURCE_DIR}/cmake/simple_casadi_mpc_codegen.cmake
+  DESTINATION ${SIMPLE_CASADI_MPC_CMAKE_INSTALL_DIR})
 
 # build examples
 if(BUILD_EXAMPLES)
