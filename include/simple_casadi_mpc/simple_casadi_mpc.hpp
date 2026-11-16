@@ -3,7 +3,10 @@
 #include <Eigen/Dense>
 #include <casadi/casadi.hpp>
 #include <filesystem>
+#include <functional>
+#include <limits>
 #include <map>
+#include <stdexcept>
 #include <memory>
 #include <numeric>
 #include <vector>
@@ -45,6 +48,39 @@ static T integrate_dynamics_rk4(DT dt, T x, T u, std::function<T(T, T)> dynamics
   return x + dt / 6 * (k1 + 2 * k2 + 2 * k3 + k4);
 }
 
+/// @brief Lie-group forward Euler step: `x_{k+1} = retract(x, dt * f(x, u))`.
+///
+/// `f(x, u)` returns the tangent (body-frame) velocity of the state, of size
+/// `M.ndx()`; `retract` follows the right-perturbation convention of
+/// `casadi::Manifold` (e.g. `q * Exp(dt * omega)` for a quaternion).
+/// @tparam T `casadi::MX` (symbolic) or `casadi::DM` (numeric).
+/// @tparam DT step size type (`double` or `casadi::MX`).
+template <class T, class DT>
+static T integrate_dynamics_lie_euler(const casadi::Manifold &M, DT dt, T x, T u,
+                                      std::function<T(T, T)> dynamics) {
+  return M.retract(x, dt * dynamics(x, u));
+}
+
+/// @brief Runge-Kutta-Munthe-Kaas 4th-order step on a Lie group.
+///
+/// Stage increments \f$\theta_i\f$ live in the tangent space of `x`; the
+/// derivative of \f$\theta\f$ is \f$J_r(\theta)^{-1} f(x \oplus \theta, u)\f$, so the
+/// scheme is fourth-order accurate on the group and reduces to classical RK4
+/// for Euclidean states. Requires `M.is_lie_group()`.
+/// @copydetails integrate_dynamics_lie_euler
+template <class T, class DT>
+static T integrate_dynamics_lie_rk4(const casadi::Manifold &M, DT dt, T x, T u,
+                                    std::function<T(T, T)> dynamics) {
+  auto rhs = [&](const T &theta) {
+    return T::mtimes(M.Jr_inv(theta), dynamics(M.retract(x, theta), u));
+  };
+  T k1 = dynamics(x, u);
+  T k2 = rhs(dt / 2 * k1);
+  T k3 = rhs(dt / 2 * k2);
+  T k4 = rhs(dt * k3);
+  return M.retract(x, dt / 6 * (k1 + 2 * k2 + 2 * k3 + k4));
+}
+
 /// @brief Base class describing an MPC optimal control problem.
 ///
 /// Derive from this class and override @ref dynamics, @ref stage_cost and
@@ -62,6 +98,12 @@ public:
     ContinuesModifiedEuler, ///< Continuous-time, integrated by Heun's method.
     ContinuesRK4,           ///< Continuous-time, integrated by classical RK4.
     Discretized,            ///< User supplies x_{k+1} directly.
+    /// Continuous-time on the state manifold: @ref dynamics returns the tangent velocity
+    /// (size `ndx()`), integrated by `retract(x, dt * f)`.
+    ContinuesLieEuler,
+    /// Continuous-time on the state manifold: @ref dynamics returns the tangent velocity,
+    /// integrated by Runge-Kutta-Munthe-Kaas 4 (requires a Lie group).
+    ContinuesLieRK4,
   };
 
   /// @brief Constraint kind passed to @ref add_constraint and @ref add_soft_constraint.
@@ -90,7 +132,8 @@ public:
   /// @param _horizon number of stages in the optimization (N).
   /// @param _dts per-stage time steps, must have size == `_horizon`.
   Problem(DynamicsType dyn_type, size_t _nx, size_t _nu, size_t _horizon, std::vector<double> _dts)
-      : dyn_type_(dyn_type), nx_(_nx), nu_(_nu), horizon_(_horizon), dts_(std::move(_dts)) {
+      : dyn_type_(dyn_type), nx_(_nx), nu_(_nu), horizon_(_horizon), dts_(std::move(_dts)),
+        state_manifold_(casadi::Manifold::Euclidean(_nx)) {
     assert(dts_.size() == horizon_ && "dts.size() must equal horizon");
     double inf = std::numeric_limits<double>::infinity();
 
@@ -103,6 +146,39 @@ public:
     x_bounds_ = std::vector<LUbound>{horizon(), {xlb, xub}};
   }
 
+  /// @brief Construct a problem whose state lives on a manifold (uniform time step).
+  ///
+  /// The state is stored in the ambient representation of `state_manifold`
+  /// (`nx() == state_manifold.nx()`, e.g. a unit quaternion for SO3), while
+  /// the dynamics constraints, the initial condition and the solver's search
+  /// directions live in its tangent space (`ndx()`). Typical state:
+  /// `casadi::Manifold::product({R3, R3, SO3, R3})` for position, velocity,
+  /// orientation and angular velocity.
+  ///
+  /// Use DynamicsType::ContinuesLieEuler / ContinuesLieRK4 and return the
+  /// tangent velocity from @ref dynamics, or DynamicsType::Discretized and
+  /// return the next state. State bounds are only allowed on the Euclidean
+  /// entries (`state_manifold.euclidean_mask()`).
+  ///
+  /// The NLP solver must support manifolds natively ("sqpmethod", "fatrop") or
+  /// handles them through `manifold_fallback = "embed"` (e.g. "ipopt"), which
+  /// @ref MPC sets by default.
+  Problem(DynamicsType dyn_type, casadi::Manifold state_manifold, size_t _nu, size_t _horizon,
+          double _dt)
+      : Problem(dyn_type, state_manifold, _nu, _horizon, std::vector<double>(_horizon, _dt)) {}
+
+  /// @brief Manifold-state problem with per-stage time steps. See the uniform-step overload.
+  Problem(DynamicsType dyn_type, casadi::Manifold state_manifold, size_t _nu, size_t _horizon,
+          std::vector<double> _dts)
+      : Problem(dyn_type, static_cast<size_t>(state_manifold.nx()), _nu, _horizon,
+                std::move(_dts)) {
+    state_manifold_ = state_manifold;
+    if (dyn_type == DynamicsType::ContinuesLieRK4 && !state_manifold_.is_lie_group()) {
+      throw std::invalid_argument("DynamicsType::ContinuesLieRK4 requires a Lie group, got " +
+                                  casadi::str(state_manifold_));
+    }
+  }
+
   /// @brief Symbolic dynamics, must be overridden by the user.
   ///
   /// For a continuous DynamicsType, return \f$\frac{dx}{dt} = f(x, u)\f$ given
@@ -112,7 +188,10 @@ public:
   ///
   /// @param x state \f$x_k \in \mathbb{R}^{n_x}\f$.
   /// @param u input \f$u_k \in \mathbb{R}^{n_u}\f$.
-  /// @return either \f$\frac{dx}{dt}\f$ (continuous) or \f$x_{k+1}\f$ (discrete).
+  /// For DynamicsType::ContinuesLieEuler / ContinuesLieRK4, return the tangent
+  /// velocity \f$\xi\f$ of size `ndx()` (e.g. body angular velocity for SO3).
+  ///
+  /// @return either \f$\frac{dx}{dt}\f$ (continuous), \f$\xi\f$ (Lie) or \f$x_{k+1}\f$ (discrete).
   virtual casadi::MX dynamics(casadi::MX x, casadi::MX u) = 0;
 
   /// @brief Evaluate @ref dynamics at numeric `(x, u)`. Useful for plant simulation.
@@ -147,6 +226,21 @@ public:
     assert(dyn_type_ != DynamicsType::Discretized);
     auto dyn =
         std::bind(&Problem::dynamics_eval, this, std::placeholders::_1, std::placeholders::_2);
+    if (dyn_type_ == DynamicsType::ContinuesLieEuler ||
+        dyn_type_ == DynamicsType::ContinuesLieRK4) {
+      std::function<casadi::DM(casadi::DM, casadi::DM)> dyn_dm = [&](casadi::DM x, casadi::DM v) {
+        return casadi_utils::to_casadi(dynamics_eval(casadi_utils::to_eigen(x),
+                                                 casadi_utils::to_eigen(v)));
+      };
+      casadi::DM x = casadi_utils::to_casadi(x0);
+      casadi::DM v = casadi_utils::to_casadi(Eigen::VectorXd(u));
+      casadi::DM x_next =
+          dyn_type_ == DynamicsType::ContinuesLieEuler
+              ? integrate_dynamics_lie_euler<casadi::DM>(state_manifold_, dt, x, v, dyn_dm)
+              : integrate_dynamics_lie_rk4<casadi::DM>(state_manifold_, dt, x, v, dyn_dm);
+      // Remove round-off drift (e.g. renormalize quaternions)
+      return casadi_utils::to_eigen(state_manifold_.project(x_next));
+    }
     switch (dyn_type_) {
     case DynamicsType::ContinuesForwardEuler:
       return integrate_dynamics_forward_euler<Eigen::VectorXd>(dt, x0, u, dyn);
@@ -158,6 +252,8 @@ public:
       return integrate_dynamics_rk4<Eigen::VectorXd>(dt, x0, u, dyn);
       break;
     case DynamicsType::Discretized:
+    case DynamicsType::ContinuesLieEuler:
+    case DynamicsType::ContinuesLieRK4:
       break;
     }
     return x0;
@@ -302,7 +398,13 @@ public:
   }
 
   DynamicsType dynamics_type() const { return dyn_type_; } ///< Discretization scheme.
-  size_t nx() const { return nx_; }                        ///< State dimension.
+  size_t nx() const { return nx_; }                        ///< State dimension (ambient).
+  /// Tangent dimension of the state (equal to nx() for Euclidean states).
+  size_t ndx() const { return static_cast<size_t>(state_manifold_.ndx()); }
+  /// Manifold of the state (`Euclidean(nx)` unless constructed with a manifold).
+  const casadi::Manifold &state_manifold() const { return state_manifold_; }
+  /// True if the state lives on a non-Euclidean manifold.
+  bool has_manifold() const { return !state_manifold_.is_euclidean(); }
   size_t nu() const { return nu_; }                        ///< Control dimension.
   size_t horizon() const { return horizon_; }              ///< Number of stages N.
 
@@ -374,6 +476,7 @@ private:
   const size_t nu_;
   const size_t horizon_;
   const std::vector<double> dts_;
+  casadi::Manifold state_manifold_;
 
   using ConstraintFunc = std::function<casadi::MX(casadi::MX, casadi::MX)>;
 
@@ -513,6 +616,15 @@ public:
       config_["expand"] = false;
     }
 
+    if (!x_manifold_.is_null()) {
+      // Decision variables live on a manifold: solvers with native support optimize in its
+      // tangent space; others (e.g. ipopt) add its embedding constraints ("embed").
+      config_["x_manifold"] = x_manifold_;
+      if (config_.find("manifold_fallback") == config_.end()) {
+        config_["manifold_fallback"] = "embed";
+      }
+    }
+
     if (equality_required(solver_name_, config_)) {
       // Convert std::vector<bool> to std::vector<casadi_int> for CasADi
       std::vector<casadi_int> equality_int(equality_.begin(), equality_.end());
@@ -536,34 +648,12 @@ public:
                                 casadi::DMDict new_param_list = casadi::DMDict()) {
     using namespace casadi;
 
-    // Set new parameter
-    for (auto &[param_name, param] : new_param_list) {
-      prob_->param_list_[param_name].dm = param;
-    }
-
     const size_t nx = prob_->nx();
     const size_t nu = prob_->nu();
 
-    for (size_t l = 0; l < nx; l++) {
-      lbw_(l) = x0[l];
-      ubw_(l) = x0[l];
-    }
-
-    DMDict arg;
-    arg["x0"] = w0_;
-    arg["lbx"] = lbw_;
-    arg["ubx"] = ubw_;
-    arg["lbg"] = lbg_;
-    arg["ubg"] = ubg_;
-    arg["lam_x0"] = lam_x0_;
-    arg["lam_g0"] = lam_g0_;
-    param_vec_.clear();
-    param_vec_.reserve(prob_->param_list_.size());
-    for (auto &[param_name, param_pair] : prob_->param_list_) {
-      param_vec_.push_back(param_pair.dm);
-    }
-    arg["p"] = vertcat(param_vec_);
+    DMDict arg = make_solver_args(x0, new_param_list);
     DMDict sol = solver_(arg);
+    update_stats(solver_);
 
     w0_ = sol["x"];
     lam_x0_ = sol["lam_x"];
@@ -586,10 +676,95 @@ public:
     return std::vector<casadi_int>(equality_.begin(), equality_.end());
   }
 
+  /// @brief Set the initial guess of the next solve to a constant trajectory.
+  ///
+  /// All states are set to `x` and all inputs to `u` (slacks to 0); the warm-start
+  /// multipliers are reset. By default the first solve starts from zeros for
+  /// Euclidean states and from the initial state for manifold states.
+  void initialize_trajectory(const Eigen::VectorXd &x, const Eigen::VectorXd &u) {
+    const size_t nx = prob_->nx(), nu = prob_->nu(), N = prob_->horizon();
+    w0_ = casadi::DM::zeros(w0_.size1(), 1);
+    for (size_t k = 0; k <= N; ++k) {
+      for (size_t l = 0; l < nx; ++l)
+        w0_(k * w_stage_size_ + l) = x[l];
+      if (k < N) {
+        for (size_t l = 0; l < nu; ++l)
+          w0_(k * w_stage_size_ + nx + l) = u[l];
+      }
+    }
+    lam_x0_ = casadi::DM::zeros(lam_x0_.size1(), 1);
+    lam_g0_ = casadi::DM::zeros(lam_g0_.size1(), 1);
+    initialized_ = true;
+  }
+
+  /// @brief Manifold of the decision vector passed as `x_manifold` (null for Euclidean states).
+  const casadi::Manifold &decision_manifold() const { return x_manifold_; }
+
+  /// @brief Solver statistics of the last solve (`return_status`, `success`, `iter_count`, ...).
+  casadi::Dict stats() const { return last_stats_; }
+
+  /// @brief Full primal solution of the last solve, `[x_0; u_0; (s_0;) x_1; ...; x_N]`.
+  const casadi::DM &last_solution() const { return w0_; }
+
 protected:
   std::shared_ptr<Problem> prob_;
   std::string solver_name_;
   casadi::Dict config_;
+  casadi::Manifold x_manifold_;
+  casadi::MX x_init_sym_;
+  bool initialized_ = false;
+  casadi::Dict last_stats_;
+  size_t w_stage_size_ = 0; // entries of [x_k; u_k; s_k] in w
+
+  /// @brief Store the statistics of the last solve (tolerates plugins that fail to report).
+  void update_stats(const casadi::Function &solver) {
+    try {
+      last_stats_ = solver.stats();
+    } catch (std::exception &e) {
+      last_stats_ = casadi::Dict{{"return_status", std::string("unknown")}, {"success", false}};
+    }
+  }
+
+  /// @brief Assemble the nlpsol arguments for the current state and parameters.
+  casadi::DMDict make_solver_args(const Eigen::VectorXd &x0, const casadi::DMDict &new_param_list) {
+    using namespace casadi;
+    for (auto &[param_name, param] : new_param_list) {
+      prob_->param_list_[param_name].dm = param;
+    }
+    const size_t nx = prob_->nx();
+    param_vec_.clear();
+    param_vec_.reserve(prob_->param_list_.size() + 1);
+    for (auto &[param_name, param_pair] : prob_->param_list_) {
+      param_vec_.push_back(param_pair.dm);
+    }
+    if (prob_->has_manifold()) {
+      // Initial state enters through the constraint minus(x_0, x_init) == 0
+      param_vec_.push_back(casadi_utils::to_casadi(x0));
+      if (!initialized_) {
+        // Cold start: the whole state trajectory at the initial state
+        for (size_t k = 0; k <= prob_->horizon(); ++k) {
+          for (size_t l = 0; l < nx; ++l)
+            w0_(k * w_stage_size_ + l) = x0[l];
+        }
+      }
+    } else {
+      for (size_t l = 0; l < nx; l++) {
+        lbw_(l) = x0[l];
+        ubw_(l) = x0[l];
+      }
+    }
+    initialized_ = true;
+    DMDict arg;
+    arg["x0"] = w0_;
+    arg["lbx"] = lbw_;
+    arg["ubx"] = ubw_;
+    arg["lbg"] = lbg_;
+    arg["ubg"] = ubg_;
+    arg["lam_x0"] = lam_x0_;
+    arg["lam_g0"] = lam_g0_;
+    arg["p"] = vertcat(param_vec_);
+    return arg;
+  }
   casadi::MXDict casadi_prob_;
   casadi::Function solver_;
   std::vector<casadi::MX> Xs = {};
@@ -634,6 +809,16 @@ protected:
     for (auto &[param_name, param_pair] : prob_->param_list_)
       params_mx.push_back(param_pair.mx);
 
+    // State on a manifold: the initial state is a parameter (last entry of p) and enters
+    // through the stage-0 constraint minus(x_0, x_init) == 0 (no bounds on manifold entries)
+    const bool manifold = prob_->has_manifold();
+    const Manifold &Mx = prob_->state_manifold();
+    const casadi_int ndx = static_cast<casadi_int>(prob_->ndx());
+    if (manifold) {
+      x_init_sym_ = MX::sym("x_init", nx);
+      params_mx.push_back(x_init_sym_);
+    }
+
     // 2. CasADi Functions for one step (unchanged)
     // std::function<MX(MX, MX)> dynamics_func;
     // ... same as your code ...
@@ -670,6 +855,22 @@ protected:
     case Problem::DynamicsType::Discretized:
       x_next = prob_->dynamics(x_k, u_k);
       break;
+    case Problem::DynamicsType::ContinuesLieEuler: {
+      std::function<casadi::MX(casadi::MX, casadi::MX)> con_dyn =
+          std::bind(&Problem::dynamics, prob_.get(), std::placeholders::_1, std::placeholders::_2);
+      x_next = variable_dt
+                   ? integrate_dynamics_lie_euler<casadi::MX>(Mx, dt_k_sym, x_k, u_k, con_dyn)
+                   : integrate_dynamics_lie_euler<casadi::MX>(Mx, prob_->dt(), x_k, u_k, con_dyn);
+      break;
+    }
+    case Problem::DynamicsType::ContinuesLieRK4: {
+      std::function<casadi::MX(casadi::MX, casadi::MX)> con_dyn =
+          std::bind(&Problem::dynamics, prob_.get(), std::placeholders::_1, std::placeholders::_2);
+      x_next = variable_dt
+                   ? integrate_dynamics_lie_rk4<casadi::MX>(Mx, dt_k_sym, x_k, u_k, con_dyn)
+                   : integrate_dynamics_lie_rk4<casadi::MX>(Mx, prob_->dt(), x_k, u_k, con_dyn);
+      break;
+    }
     }
     std::vector<MX> F_inputs = {x_k, u_k};
     if (variable_dt)
@@ -687,6 +888,10 @@ protected:
 
     // 制約一覧
     std::vector<MX> g_k_vec;
+    if (manifold) {
+      // Initial condition (active at stage 0 only), in the tangent space
+      g_k_vec.push_back(Mx.minus(x_k, x_init_sym_));
+    }
     std::vector<casadi_int> equality_sizes; // size of each equality constraint (per stage)
     std::vector<casadi_int> inequality_sizes;
     equality_sizes.reserve(prob_->equality_constraints_.size());
@@ -897,10 +1102,22 @@ protected:
     w_vec.push_back(Xs[N]);
     MX w = vertcat(w_vec);
 
+    // [dynamics_k; path_k] interleaved per stage so that structure-exploiting solvers
+    // (fatrop) see the stage-wise OCP structure. Always used on a manifold (dynamics in the
+    // tangent space) and for fatrop; other solvers keep the historical ordering.
+    const bool interleave = manifold || solver_name_ == "fatrop";
+    const casadi_int n_defect = manifold ? ndx : static_cast<casadi_int>(nx);
     std::vector<MX> g_vec;
-    g_vec.push_back(reshape(X(Slice(), Slice(1, N + 1)) - X_next_cal, nx * N, 1));
-    if (!g_k.is_empty()) {
-      g_vec.push_back(reshape(G_path, G_path.size1() * G_path.size2(), 1));
+    if (interleave) {
+      MX defect = manifold ? Mx.minus(X(Slice(), Slice(1, N + 1)), X_next_cal)
+                           : X(Slice(), Slice(1, N + 1)) - X_next_cal;
+      MX stages = G_path.is_empty() ? defect : vertcat(defect, G_path);
+      g_vec.push_back(reshape(stages, stages.size1() * N, 1));
+    } else {
+      g_vec.push_back(reshape(X(Slice(), Slice(1, N + 1)) - X_next_cal, nx * N, 1));
+      if (!g_k.is_empty()) {
+        g_vec.push_back(reshape(G_path, G_path.size1() * G_path.size2(), 1));
+      }
     }
 
     // --- [FIX] Build bounds in temporary double vectors first ---
@@ -909,9 +1126,27 @@ protected:
     auto &u_bounds = prob_->u_bounds_;
     auto &x_bounds = prob_->x_bounds_;
 
+    if (manifold) {
+      // Simple bounds are only allowed on Euclidean entries of the state
+      std::vector<bool> mask = Mx.euclidean_mask();
+      for (size_t k = 0; k < x_bounds.size(); ++k) {
+        for (size_t l = 0; l < nx; ++l) {
+          if (!mask[l] && (std::isfinite(x_bounds[k].first[l]) ||
+                           std::isfinite(x_bounds[k].second[l]))) {
+            throw std::invalid_argument(
+                "State bounds are only allowed on Euclidean entries of the state manifold " +
+                casadi::str(Mx) + "; entry " + std::to_string(l) + " is not Euclidean.");
+          }
+        }
+      }
+    }
+
     // Bounds for w
     for (casadi_int i = 0; i < N; ++i) {
-      if (i == 0) { // Dummy bounds for x_0 (will be overwritten by x0)
+      if (i == 0 && manifold) { // x_0 is fixed by the initial-condition constraint
+        lbw_numeric.insert(lbw_numeric.end(), nx, -inf);
+        ubw_numeric.insert(ubw_numeric.end(), nx, inf);
+      } else if (i == 0) { // Dummy bounds for x_0 (will be overwritten by x0)
         lbw_numeric.insert(lbw_numeric.end(), nx, 0.0);
         ubw_numeric.insert(ubw_numeric.end(), nx, 0.0);
       } else {
@@ -943,14 +1178,28 @@ protected:
 
     // Bounds for g
     // Continuity constraints are all zero
-    lbg_numeric.insert(lbg_numeric.end(), nx * N, 0.0);
-    ubg_numeric.insert(ubg_numeric.end(), nx * N, 0.0);
-    equality_.insert(equality_.end(), nx * N, true);
+    if (!interleave) {
+      lbg_numeric.insert(lbg_numeric.end(), nx * N, 0.0);
+      ubg_numeric.insert(ubg_numeric.end(), nx * N, 0.0);
+      equality_.insert(equality_.end(), nx * N, true);
+    }
 
     // Path constraints bounds. Inactive stages of staged constraints get
     // bounds set to [-inf, +inf] so the constraint is symbolically present
     // (uniform map structure) but does not influence the solution.
     for (casadi_int i = 0; i < N; ++i) {
+      if (interleave) {
+        // Dynamics of stage i, then its path constraints
+        lbg_numeric.insert(lbg_numeric.end(), n_defect, 0.0);
+        ubg_numeric.insert(ubg_numeric.end(), n_defect, 0.0);
+        equality_.insert(equality_.end(), n_defect, true);
+      }
+      if (manifold) {
+        // Initial condition, active at stage 0 only
+        lbg_numeric.insert(lbg_numeric.end(), ndx, i == 0 ? 0.0 : -inf);
+        ubg_numeric.insert(ubg_numeric.end(), ndx, i == 0 ? 0.0 : inf);
+        equality_.insert(equality_.end(), ndx, i == 0);
+      }
       for (size_t ci = 0; ci < prob_->equality_constraints_.size(); ++ci) {
         auto &con = prob_->equality_constraints_[ci];
         const casadi_int sz = equality_sizes[ci];
@@ -997,6 +1246,24 @@ protected:
     w0_ = DM::zeros(w.size1(), 1);
     lam_x0_ = DM::zeros(w.size1(), 1);
     lam_g0_ = DM::zeros(vertcat(g_vec).size1(), 1);
+
+    w_stage_size_ = nx + nu + n_s_total;
+    if (manifold) {
+      // Manifold of the decision vector [x_0; u_0; (s_0;) x_1; ...; x_N]
+      std::vector<Manifold> comps;
+      for (casadi_int i = 0; i < N; ++i) {
+        comps.push_back(Mx);
+        comps.push_back(Manifold::Euclidean(nu + n_s_total));
+      }
+      comps.push_back(Mx);
+      x_manifold_ = Manifold::product(comps);
+      // States start at the identity element until the first solve provides x0
+      DM e = Mx.identity();
+      for (casadi_int k = 0; k <= N; ++k) {
+        for (size_t l = 0; l < nx; ++l)
+          w0_(k * w_stage_size_ + l) = e(l);
+      }
+    }
   }
 
   virtual void build_solver() { solver_ = nlpsol("solver", solver_name_, casadi_prob_, config_); }
@@ -1056,33 +1323,12 @@ public:
                         casadi::DMDict new_param_list = casadi::DMDict()) override {
     using namespace casadi;
 
-    for (auto &[param_name, param] : new_param_list) {
-      prob_->param_list_[param_name].dm = param;
-    }
-
     const size_t nx = prob_->nx();
     const size_t nu = prob_->nu();
 
-    for (size_t l = 0; l < nx; l++) {
-      lbw_(l) = x0[l];
-      ubw_(l) = x0[l];
-    }
-
-    DMDict arg;
-    arg["x0"] = w0_;
-    arg["lbx"] = lbw_;
-    arg["ubx"] = ubw_;
-    arg["lbg"] = lbg_;
-    arg["ubg"] = ubg_;
-    arg["lam_x0"] = lam_x0_;
-    arg["lam_g0"] = lam_g0_;
-    param_vec_.clear();
-    param_vec_.reserve(prob_->param_list_.size());
-    for (auto &[param_name, param_pair] : prob_->param_list_) {
-      param_vec_.push_back(param_pair.dm);
-    }
-    arg["p"] = vertcat(param_vec_);
+    DMDict arg = make_solver_args(x0, new_param_list);
     DMDict sol = compiled_solver_(arg);
+    update_stats(compiled_solver_);
 
     w0_ = sol["x"];
     lam_x0_ = sol["lam_x"];
@@ -1150,33 +1396,12 @@ public:
                         casadi::DMDict new_param_list = casadi::DMDict()) override {
     using namespace casadi;
 
-    for (auto &[param_name, param] : new_param_list) {
-      prob_->param_list_[param_name].dm = param;
-    }
-
     const size_t nx = prob_->nx();
     const size_t nu = prob_->nu();
 
-    for (size_t l = 0; l < nx; l++) {
-      lbw_(l) = x0[l];
-      ubw_(l) = x0[l];
-    }
-
-    DMDict arg;
-    arg["x0"] = w0_;
-    arg["lbx"] = lbw_;
-    arg["ubx"] = ubw_;
-    arg["lbg"] = lbg_;
-    arg["ubg"] = ubg_;
-    arg["lam_x0"] = lam_x0_;
-    arg["lam_g0"] = lam_g0_;
-    param_vec_.clear();
-    param_vec_.reserve(prob_->param_list_.size());
-    for (auto &[param_name, param_pair] : prob_->param_list_) {
-      param_vec_.push_back(param_pair.dm);
-    }
-    arg["p"] = vertcat(param_vec_);
+    DMDict arg = make_solver_args(x0, new_param_list);
     DMDict sol = compiled_solver_(arg);
+    update_stats(compiled_solver_);
 
     w0_ = sol["x"];
     lam_x0_ = sol["lam_x"];
