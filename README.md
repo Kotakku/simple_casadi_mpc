@@ -363,6 +363,9 @@ Two simple-casadi-mpc-specific options can be passed in the config dict (consume
 - `expand_inner_functions` (default `true`): SX-expand per-stage F/L/G before mapping for faster JIT compilation.
 
 Both default to `true`. If your `stage_cost` has stage-dependent branching beyond per-stage parameter slicing, the library auto-falls-back to a per-stage loop (warning emitted) and you can also set `mapsum_stage_cost = false` explicitly.
+- `structured_derivatives` (default `false`): compute the Hessian of the Lagrangian and the constraint Jacobian stage by stage (expanded SX per stage, mapped over the horizon and scattered into the global matrices) instead of by automatic differentiation of the whole NLP. Typically 2-5x faster derivative evaluations, in particular on manifolds where the dynamics residual couples `x_k` and `x_{k+1}` nonlinearly. Needs a CasADi with the nlpsol options `custom_hess_lag` / `custom_jac_g`; it is disabled (with a warning) when `mapsum_stage_cost` is not applicable or for manifold problems on solvers without native manifold support.
+
+The stage-dependence check of `stage_cost` compares the expressions structurally and, if that is inconclusive (e.g. `dot`/`sumsqr` nodes), numerically at random inputs.
 
 ### Variable time step
 

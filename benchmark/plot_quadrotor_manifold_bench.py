@@ -26,9 +26,11 @@ FORMULATION_LABELS = {
     "quat_free": "quat (free)",
     "euler": "Euler ZYX",
 }
-SOLVERS = ["fatrop", "fatrop_jit", "ipopt", "ipopt_jit", "sqpmethod"]
-SOLVER_COLORS = {"fatrop": "#1f77b4", "fatrop_jit": "#17becf", "ipopt": "#ff7f0e",
-                 "ipopt_jit": "#bcbd22", "sqpmethod": "#2ca02c"}
+SOLVERS = ["fatrop", "fatrop_sd", "fatrop_jit", "fatrop_jit_sd", "ipopt", "ipopt_sd",
+           "ipopt_jit", "ipopt_jit_sd", "sqpmethod"]
+SOLVER_COLORS = {"fatrop": "#1f77b4", "fatrop_sd": "#9467bd", "fatrop_jit": "#17becf",
+                 "fatrop_jit_sd": "#d62728", "ipopt": "#ff7f0e", "ipopt_sd": "#8c564b",
+                 "ipopt_jit": "#bcbd22", "ipopt_jit_sd": "#e377c2", "sqpmethod": "#2ca02c"}
 
 
 def read_csv(path):
@@ -226,10 +228,10 @@ def plot_closed_loop(summary, steps, out):
             if not sel:
                 continue
             t = [num(r["time"]) for r in sel]
-            ls = {"fatrop": "-", "fatrop_jit": "-.", "ipopt": "--", "ipopt_jit": (0, (5, 1)),
-          "sqpmethod": ":"}.get(s, "-")
-            axs[0].plot(t, [num(r["att_err_deg"]) for r in sel], ls, label=f"{f}/{s}")
-            axs[1].plot(t, [num(r["pos_err"]) for r in sel], ls, label=f"{f}/{s}")
+            ls = {"fatrop": "-", "fatrop_sd": (0, (3, 1)), "fatrop_jit": "-.", "fatrop_jit_sd": "-",
+          "ipopt": "--", "sqpmethod": ":"}.get(s, "-")
+            axs[0].plot(t, [num(r["att_err_deg"]) for r in sel], linestyle=ls, label=f"{f}/{s}")
+            axs[1].plot(t, [num(r["pos_err"]) for r in sel], linestyle=ls, label=f"{f}/{s}")
     axs[0].set_title(f"Closed loop, initial tilt {angles[hardest]:.0f} deg: attitude error")
     axs[0].set_ylabel("attitude error [deg]")
     axs[1].set_title("position error")

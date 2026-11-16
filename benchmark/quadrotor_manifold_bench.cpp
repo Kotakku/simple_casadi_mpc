@@ -15,12 +15,13 @@
 // The manifold state is benchmarked with two integrators: Runge-Kutta-Munthe-Kaas
 // ("manifold") and RK4 in the ambient coordinates followed by a projection ("manifold_proj").
 //
-// Usage: quadrotor_manifold_bench [--out DIR] [--solvers fatrop,fatrop_jit,ipopt,sqpmethod]
+// Usage: quadrotor_manifold_bench [--out DIR] [--solvers fatrop,fatrop_jit_sd,ipopt,...]
 //                                 [--ocp-scenarios N] [--cl-scenarios N]
 //                                 [--sqp-scenarios N] [--sqp-closed-loop] [--sim-time T]
 //                                 [--seed S] [--ocp-timeout S] [--cl-timeout S]
 // A "_jit" suffix uses JITMPC (the solver JIT-compiled at construction; the build time is
-// written to build_times.csv). By default fatrop and fatrop_jit are benchmarked. Each OCP solve and each closed-loop scenario runs
+// written to build_times.csv), "_sd" the option structured_derivatives (stage-wise Hessian
+// and Jacobian). By default fatrop, fatrop_sd, fatrop_jit and fatrop_jit_sd are run. Each OCP solve and each closed-loop scenario runs
 // in a child process and is recorded as "timeout" if it exceeds the time limit (some
 // formulations make a solver spin, e.g. Euler angles close to gimbal lock).
 
@@ -54,7 +55,7 @@ using clk = std::chrono::high_resolution_clock;
 // ---------------------------------------------------------------------------
 struct Options {
   std::string out = "quadrotor_manifold_bench_results";
-  std::vector<std::string> solvers = {"fatrop", "fatrop_jit"};
+  std::vector<std::string> solvers = {"fatrop", "fatrop_sd", "fatrop_jit", "fatrop_jit_sd"};
   int ocp_scenarios = 40;
   int cl_scenarios = 12;
   int sqp_scenarios = 10;
@@ -130,21 +131,36 @@ casadi::Dict solver_config(const std::string &solver) {
        casadi::Dict{{"print_iter", false}, {"print_header", false}, {"error_on_fail", false}}}};
 }
 
-/// "<solver>" builds an MPC, "<solver>_jit" a JITMPC (solver JIT-compiled with the default
-/// JIT options)
+/// "<solver>[_jit][_sd]": "_jit" builds a JITMPC (solver JIT-compiled with the default JIT
+/// options), "_sd" enables structured_derivatives (stage-wise Hessian / Jacobian)
 std::unique_ptr<MPC> make_mpc(const std::string &f, const std::string &solver,
                               std::shared_ptr<Problem> prob, double &build_ms) {
-  const std::string suffix = "_jit";
-  bool jit = solver.size() > suffix.size() &&
-             solver.compare(solver.size() - suffix.size(), suffix.size(), suffix) == 0;
-  std::string base = jit ? solver.substr(0, solver.size() - suffix.size()) : solver;
+  std::string base = solver;
+  bool jit = false, sd = false;
+  auto strip = [&](const std::string &suffix) {
+    if (base.size() > suffix.size() &&
+        base.compare(base.size() - suffix.size(), suffix.size(), suffix) == 0) {
+      base = base.substr(0, base.size() - suffix.size());
+      return true;
+    }
+    return false;
+  };
+  for (bool changed = true; changed;) {
+    changed = false;
+    if (strip("_sd"))
+      changed = sd = true;
+    if (strip("_jit"))
+      changed = jit = true;
+  }
+  casadi::Dict cfg = solver_config(base);
+  if (sd)
+    cfg["structured_derivatives"] = true;
   auto t0 = clk::now();
   std::unique_ptr<MPC> mpc;
   if (jit)
-    mpc = std::make_unique<JITMPC>("quadrotor_bench_" + f + "_" + base, prob, base,
-                                   solver_config(base));
+    mpc = std::make_unique<JITMPC>("quadrotor_bench_" + f + "_" + solver, prob, base, cfg);
   else
-    mpc = std::make_unique<MPC>(prob, base, solver_config(base));
+    mpc = std::make_unique<MPC>(prob, base, cfg);
   build_ms = std::chrono::duration<double, std::milli>(clk::now() - t0).count();
   return mpc;
 }
