@@ -215,6 +215,43 @@ target_link_libraries(<your_exe> PRIVATE
   ${<solver_target_name>_COMPILED_SOLVER})
 ```
 
+### States on a manifold (Lie groups)
+
+With a CasADi build that provides `casadi::Manifold` (e.g. orientations as unit
+quaternions on SO(3)), construct the `Problem` with a manifold instead of `nx`.
+The solver then optimizes in the tangent space and updates the iterate with the
+retraction, so quaternions stay normalized without any unit-norm constraint.
+
+```cpp
+class Quadrotor : public simple_casadi_mpc::Problem {
+public:
+  static casadi::Manifold manifold() {
+    auto R3 = casadi::Manifold::Euclidean(3);
+    return casadi::Manifold::product({R3, R3, casadi::Manifold::SO3(), R3}); // p, v, q, w
+  }
+  Quadrotor() : Problem(DynamicsType::ContinuesLieRK4, manifold(), /*nu=*/4, /*N=*/20, 0.05) {}
+
+  // Lie dynamics return the tangent velocity (size ndx() = 12): [p'; v'; w (body); w']
+  casadi::MX dynamics(casadi::MX x, casadi::MX u) override { ... }
+};
+```
+
+- `DynamicsType::ContinuesLieEuler` / `ContinuesLieRK4` integrate the tangent velocity
+  returned by `dynamics` with `retract` (Lie RK4 is Runge-Kutta-Munthe-Kaas). With
+  `DynamicsType::Discretized`, return the next state instead.
+- The dynamics constraints are `M.minus(x_{k+1}, f_d(x_k, u_k)) == 0` and the initial
+  state is imposed by `M.minus(x_0, x_init) == 0` (no bounds on manifold entries);
+  `set_state_bound` is only allowed on the Euclidean entries (`euclidean_mask()`).
+- Solvers: `"fatrop"` and `"sqpmethod"` support manifolds natively; other solvers
+  (e.g. `"ipopt"`) use `manifold_fallback = "embed"`, which `MPC` sets by default.
+- `Problem::simulate` integrates on the manifold, and `MPC::initialize_trajectory(x, u)`
+  sets a constant initial guess (useful for every formulation).
+- With fatrop, the constraints are laid out stage by stage (dynamics, then path
+  constraints), which also enables path constraints for Euclidean problems.
+
+See `benchmark/quadrotor_problems.hpp` for a complete quadrotor and
+[the manifold benchmark](#quadrotor-on-so3-manifold-vs-quaternion--euler-formulations).
+
 ## Examples
 
 ### double_integrator_mpc_example
@@ -348,6 +385,24 @@ Runtime comparisons for cartpole MPC solver variants.
 ![](gallery/benchmark/bench_cartpole_mpc_solve_time_comparison_zoom.png)
 
 ![](gallery/benchmark/bench_cartpole_jit_vs_compiled_mpc_solve_time_comparison.png)
+
+### Quadrotor on SO(3): manifold vs quaternion / Euler formulations
+
+`benchmark/quadrotor_manifold_bench.cpp` solves the same quadrotor problem with the
+orientation on SO(3) (`casadi::Manifold`) and with formulations available in upstream
+CasADi (quaternion with `|q|^2 = 1` path constraints, unconstrained quaternion, ZYX
+Euler angles), each with fatrop / ipopt / sqpmethod. It reports success rate, solve
+time, iterations and solution accuracy (true cost of the plant rollout, prediction
+error, quaternion norm drift) for cold-started OCPs from random attitudes up to
+180 deg, and closed-loop MPC.
+
+```bash
+cmake .. -DBUILD_BENCHMARKS=ON && make quadrotor_manifold_bench
+./quadrotor_manifold_bench --out results \
+  [--solvers fatrop,ipopt,sqpmethod] [--ocp-scenarios 40] [--cl-scenarios 12] \
+  [--sqp-scenarios 10] [--sqp-closed-loop] [--sim-time 3]   # default: fatrop only
+python3 ../benchmark/plot_quadrotor_manifold_bench.py results
+```
 
 ## Documentation
 
