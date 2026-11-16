@@ -237,10 +237,14 @@ public:
 ```
 
 - `DynamicsType::ContinuesLieEuler` / `ContinuesLieRK4` integrate the tangent velocity
-  returned by `dynamics` with `retract` (Lie RK4 is Runge-Kutta-Munthe-Kaas). With
+  returned by `dynamics` with `retract` (Lie RK4 is Runge-Kutta-Munthe-Kaas).
+  `ContinuesProjectedRK4` runs classical RK4 in the ambient coordinates (velocity
+  `M.jac_retract_dx(x) * dynamics(x, u)`) and projects back onto the manifold; it is several
+  times cheaper to differentiate and is the fastest choice for MPC. With
   `DynamicsType::Discretized`, return the next state instead.
-- The dynamics constraints are `M.minus(x_{k+1}, f_d(x_k, u_k)) == 0` and the initial
-  state is imposed by `M.minus(x_0, x_init) == 0` (no bounds on manifold entries);
+- The dynamics constraints are `M.defect(x_{k+1}, f_d(x_k, u_k)) == 0` and the initial
+  state is imposed by `M.defect(x_0, x_init) == 0` (no bounds on manifold entries).
+  `defect` has the same zeros and first-order behavior as `minus` without the logarithm;
   `set_state_bound` is only allowed on the Euclidean entries (`euclidean_mask()`).
 - Solvers: `"fatrop"` and `"sqpmethod"` support manifolds natively; other solvers
   (e.g. `"ipopt"`) use `manifold_fallback = "embed"`, which `MPC` sets by default.

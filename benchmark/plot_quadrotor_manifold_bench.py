@@ -18,15 +18,17 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
 
-FORMULATIONS = ["manifold", "quat_norm", "quat_free", "euler"]
+FORMULATIONS = ["manifold", "manifold_proj", "quat_norm", "quat_free", "euler"]
 FORMULATION_LABELS = {
-    "manifold": "manifold (SO3)",
+    "manifold": "manifold\n(Lie RK4)",
+    "manifold_proj": "manifold\n(proj. RK4)",
     "quat_norm": "quat + |q|=1",
     "quat_free": "quat (free)",
     "euler": "Euler ZYX",
 }
-SOLVERS = ["fatrop", "ipopt", "sqpmethod"]
-SOLVER_COLORS = {"fatrop": "#1f77b4", "ipopt": "#ff7f0e", "sqpmethod": "#2ca02c"}
+SOLVERS = ["fatrop", "fatrop_jit", "ipopt", "ipopt_jit", "sqpmethod"]
+SOLVER_COLORS = {"fatrop": "#1f77b4", "fatrop_jit": "#17becf", "ipopt": "#ff7f0e",
+                 "ipopt_jit": "#bcbd22", "sqpmethod": "#2ca02c"}
 
 
 def read_csv(path):
@@ -224,7 +226,8 @@ def plot_closed_loop(summary, steps, out):
             if not sel:
                 continue
             t = [num(r["time"]) for r in sel]
-            ls = {"fatrop": "-", "ipopt": "--", "sqpmethod": ":"}[s]
+            ls = {"fatrop": "-", "fatrop_jit": "-.", "ipopt": "--", "ipopt_jit": (0, (5, 1)),
+          "sqpmethod": ":"}.get(s, "-")
             axs[0].plot(t, [num(r["att_err_deg"]) for r in sel], ls, label=f"{f}/{s}")
             axs[1].plot(t, [num(r["pos_err"]) for r in sel], ls, label=f"{f}/{s}")
     axs[0].set_title(f"Closed loop, initial tilt {angles[hardest]:.0f} deg: attitude error")
@@ -245,8 +248,15 @@ def median(vals):
     return float(np.median(vals)) if vals else math.nan
 
 
-def write_summary(ocp, summary, steps, out):
+def write_summary(ocp, summary, steps, out, builds=()):
     lines = ["# Quadrotor manifold benchmark\n"]
+    if builds:
+        lines += ["## Build (construction incl. JIT compilation)\n",
+                  "| formulation | solver | build time [s] |", "|---|---|---|"]
+        for r in builds:
+            lines.append(f"| {r['formulation']} | {r['solver']} | "
+                         f"{num(r['build_time_ms']) / 1e3:.1f} |")
+        lines.append("")
     if ocp:
         lines += ["## OCP (cold start)\n",
                   "| formulation | solver | n | success | median time [ms] | median iters | "
@@ -295,10 +305,11 @@ def main():
     ocp = read_csv(os.path.join(out, "ocp_results.csv"))
     summary = read_csv(os.path.join(out, "closed_loop_summary.csv"))
     steps = read_csv(os.path.join(out, "closed_loop_steps.csv"))
+    builds = read_csv(os.path.join(out, "build_times.csv"))
     restrict_solvers(ocp, summary)
     plot_ocp(ocp, out)
     plot_closed_loop(summary, steps, out)
-    write_summary(ocp, summary, steps, out)
+    write_summary(ocp, summary, steps, out, builds)
     print(f"Figures written to {out}")
 
 

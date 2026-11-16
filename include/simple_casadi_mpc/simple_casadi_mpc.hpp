@@ -81,6 +81,24 @@ static T integrate_dynamics_lie_rk4(const casadi::Manifold &M, DT dt, T x, T u,
   return M.retract(x, dt / 6 * (k1 + 2 * k2 + 2 * k3 + k4));
 }
 
+/// @brief Projected RK4 step on a manifold.
+///
+/// Classical RK4 in the ambient (embedding) coordinates with the ambient velocity
+/// `jac_retract_dx(x) * f(x, u)`, followed by `M.project`. Much cheaper to differentiate
+/// than @ref integrate_dynamics_lie_rk4 (no exp/log/Jr_inv in the stages) and works on any
+/// manifold with a projection; fourth-order accurate up to the projection.
+/// @copydetails integrate_dynamics_lie_euler
+template <class T, class DT>
+static T integrate_dynamics_projected_rk4(const casadi::Manifold &M, DT dt, T x, T u,
+                                          std::function<T(T, T)> dynamics) {
+  auto rhs = [&](const T &y) { return T::mtimes(M.jac_retract_dx(y), dynamics(y, u)); };
+  T k1 = rhs(x);
+  T k2 = rhs(x + dt / 2 * k1);
+  T k3 = rhs(x + dt / 2 * k2);
+  T k4 = rhs(x + dt * k3);
+  return M.project(x + dt / 6 * (k1 + 2 * k2 + 2 * k3 + k4));
+}
+
 /// @brief Base class describing an MPC optimal control problem.
 ///
 /// Derive from this class and override @ref dynamics, @ref stage_cost and
@@ -104,6 +122,10 @@ public:
     /// Continuous-time on the state manifold: @ref dynamics returns the tangent velocity,
     /// integrated by Runge-Kutta-Munthe-Kaas 4 (requires a Lie group).
     ContinuesLieRK4,
+    /// Continuous-time on the state manifold: @ref dynamics returns the tangent velocity,
+    /// integrated by RK4 in the ambient coordinates followed by a projection onto the
+    /// manifold (cheapest to differentiate; any manifold with a projection).
+    ContinuesProjectedRK4,
   };
 
   /// @brief Constraint kind passed to @ref add_constraint and @ref add_soft_constraint.
@@ -155,7 +177,7 @@ public:
   /// `casadi::Manifold::product({R3, R3, SO3, R3})` for position, velocity,
   /// orientation and angular velocity.
   ///
-  /// Use DynamicsType::ContinuesLieEuler / ContinuesLieRK4 and return the
+  /// Use DynamicsType::ContinuesLieEuler / ContinuesLieRK4 / ContinuesProjectedRK4 and return the
   /// tangent velocity from @ref dynamics, or DynamicsType::Discretized and
   /// return the next state. State bounds are only allowed on the Euclidean
   /// entries (`state_manifold.euclidean_mask()`).
@@ -188,7 +210,7 @@ public:
   ///
   /// @param x state \f$x_k \in \mathbb{R}^{n_x}\f$.
   /// @param u input \f$u_k \in \mathbb{R}^{n_u}\f$.
-  /// For DynamicsType::ContinuesLieEuler / ContinuesLieRK4, return the tangent
+  /// For DynamicsType::ContinuesLieEuler / ContinuesLieRK4 / ContinuesProjectedRK4, return the tangent
   /// velocity \f$\xi\f$ of size `ndx()` (e.g. body angular velocity for SO3).
   ///
   /// @return either \f$\frac{dx}{dt}\f$ (continuous), \f$\xi\f$ (Lie) or \f$x_{k+1}\f$ (discrete).
@@ -227,7 +249,8 @@ public:
     auto dyn =
         std::bind(&Problem::dynamics_eval, this, std::placeholders::_1, std::placeholders::_2);
     if (dyn_type_ == DynamicsType::ContinuesLieEuler ||
-        dyn_type_ == DynamicsType::ContinuesLieRK4) {
+        dyn_type_ == DynamicsType::ContinuesLieRK4 ||
+        dyn_type_ == DynamicsType::ContinuesProjectedRK4) {
       std::function<casadi::DM(casadi::DM, casadi::DM)> dyn_dm = [&](casadi::DM x, casadi::DM v) {
         return casadi_utils::to_casadi(dynamics_eval(casadi_utils::to_eigen(x),
                                                  casadi_utils::to_eigen(v)));
@@ -237,7 +260,9 @@ public:
       casadi::DM x_next =
           dyn_type_ == DynamicsType::ContinuesLieEuler
               ? integrate_dynamics_lie_euler<casadi::DM>(state_manifold_, dt, x, v, dyn_dm)
-              : integrate_dynamics_lie_rk4<casadi::DM>(state_manifold_, dt, x, v, dyn_dm);
+          : dyn_type_ == DynamicsType::ContinuesLieRK4
+              ? integrate_dynamics_lie_rk4<casadi::DM>(state_manifold_, dt, x, v, dyn_dm)
+              : integrate_dynamics_projected_rk4<casadi::DM>(state_manifold_, dt, x, v, dyn_dm);
       // Remove round-off drift (e.g. renormalize quaternions)
       return casadi_utils::to_eigen(state_manifold_.project(x_next));
     }
@@ -254,6 +279,7 @@ public:
     case DynamicsType::Discretized:
     case DynamicsType::ContinuesLieEuler:
     case DynamicsType::ContinuesLieRK4:
+    case DynamicsType::ContinuesProjectedRK4:
       break;
     }
     return x0;
@@ -738,7 +764,7 @@ protected:
       param_vec_.push_back(param_pair.dm);
     }
     if (prob_->has_manifold()) {
-      // Initial state enters through the constraint minus(x_0, x_init) == 0
+      // Initial state enters through the constraint defect(x_0, x_init) == 0
       param_vec_.push_back(casadi_utils::to_casadi(x0));
       if (!initialized_) {
         // Cold start: the whole state trajectory at the initial state
@@ -810,7 +836,7 @@ protected:
       params_mx.push_back(param_pair.mx);
 
     // State on a manifold: the initial state is a parameter (last entry of p) and enters
-    // through the stage-0 constraint minus(x_0, x_init) == 0 (no bounds on manifold entries)
+    // through the stage-0 constraint defect(x_0, x_init) == 0 (no bounds on manifold entries)
     const bool manifold = prob_->has_manifold();
     const Manifold &Mx = prob_->state_manifold();
     const casadi_int ndx = static_cast<casadi_int>(prob_->ndx());
@@ -871,6 +897,15 @@ protected:
                    : integrate_dynamics_lie_rk4<casadi::MX>(Mx, prob_->dt(), x_k, u_k, con_dyn);
       break;
     }
+    case Problem::DynamicsType::ContinuesProjectedRK4: {
+      std::function<casadi::MX(casadi::MX, casadi::MX)> con_dyn =
+          std::bind(&Problem::dynamics, prob_.get(), std::placeholders::_1, std::placeholders::_2);
+      x_next = variable_dt ? integrate_dynamics_projected_rk4<casadi::MX>(Mx, dt_k_sym, x_k, u_k,
+                                                                          con_dyn)
+                           : integrate_dynamics_projected_rk4<casadi::MX>(Mx, prob_->dt(), x_k,
+                                                                          u_k, con_dyn);
+      break;
+    }
     }
     std::vector<MX> F_inputs = {x_k, u_k};
     if (variable_dt)
@@ -878,6 +913,17 @@ protected:
     Function F("F_dynamics", F_inputs, {x_next});
     if (expand_inner_functions)
       F = F.expand(F.name(), {{"cse", true}});
+    // On a manifold the dynamics residual defect(x_{k+1}, F(x_k, u_k)) is nonlinear in F:
+    // build it per stage so that it is mapped (and expanded) together with F
+    Function F_defect;
+    if (manifold) {
+      MX x_k1 = MX::sym("x_k1", nx);
+      std::vector<MX> D_inputs = F_inputs;
+      D_inputs.push_back(x_k1);
+      F_defect = Function("F_defect", D_inputs, {Mx.defect(x_k1, x_next)});
+      if (expand_inner_functions)
+        F_defect = F_defect.expand(F_defect.name(), {{"cse", true}});
+    }
 
     std::vector<MX> L_inputs = {x_k, u_k};
     L_inputs.insert(L_inputs.end(), params_mx.begin(), params_mx.end());
@@ -890,7 +936,7 @@ protected:
     std::vector<MX> g_k_vec;
     if (manifold) {
       // Initial condition (active at stage 0 only), in the tangent space
-      g_k_vec.push_back(Mx.minus(x_k, x_init_sym_));
+      g_k_vec.push_back(Mx.defect(x_k, x_init_sym_));
     }
     std::vector<casadi_int> equality_sizes; // size of each equality constraint (per stage)
     std::vector<casadi_int> inequality_sizes;
@@ -961,7 +1007,15 @@ protected:
       // (1, N) row of per-stage dts, fed as the third input to F across stages.
       F_map_inputs.push_back(DM(prob_->dts()).T());
     }
-    MX X_next_cal = F.map(N)(F_map_inputs)[0];
+    MX X_next_cal;
+    MX X_defect; // manifold only
+    if (manifold) {
+      std::vector<MX> D_map_inputs = F_map_inputs;
+      D_map_inputs.push_back(X(Slice(), Slice(1, N + 1)));
+      X_defect = F_defect.map(N)(D_map_inputs)[0];
+    } else {
+      X_next_cal = F.map(N)(F_map_inputs)[0];
+    }
 
     // Stage cost: when mapsum_stage_cost is set, replace each per-stage param
     // p (shape rows×N) by repmat(col_sym, 1, N) inside the user's stage_cost
@@ -1109,8 +1163,8 @@ protected:
     const casadi_int n_defect = manifold ? ndx : static_cast<casadi_int>(nx);
     std::vector<MX> g_vec;
     if (interleave) {
-      MX defect = manifold ? Mx.minus(X(Slice(), Slice(1, N + 1)), X_next_cal)
-                           : X(Slice(), Slice(1, N + 1)) - X_next_cal;
+      // defect: same zeros and first-order behavior as minus, but without the logarithm
+      MX defect = manifold ? X_defect : X(Slice(), Slice(1, N + 1)) - X_next_cal;
       MX stages = G_path.is_empty() ? defect : vertcat(defect, G_path);
       g_vec.push_back(reshape(stages, stages.size1() * N, 1));
     } else {

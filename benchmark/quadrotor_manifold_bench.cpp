@@ -12,11 +12,15 @@
 //
 // Results are written as CSV files; plot them with plot_quadrotor_manifold_bench.py.
 //
-// Usage: quadrotor_manifold_bench [--out DIR] [--solvers fatrop,ipopt,sqpmethod]
+// The manifold state is benchmarked with two integrators: Runge-Kutta-Munthe-Kaas
+// ("manifold") and RK4 in the ambient coordinates followed by a projection ("manifold_proj").
+//
+// Usage: quadrotor_manifold_bench [--out DIR] [--solvers fatrop,fatrop_jit,ipopt,sqpmethod]
 //                                 [--ocp-scenarios N] [--cl-scenarios N]
 //                                 [--sqp-scenarios N] [--sqp-closed-loop] [--sim-time T]
 //                                 [--seed S] [--ocp-timeout S] [--cl-timeout S]
-// By default only fatrop is benchmarked. Each OCP solve and each closed-loop scenario runs
+// A "_jit" suffix uses JITMPC (the solver JIT-compiled at construction; the build time is
+// written to build_times.csv). By default fatrop and fatrop_jit are benchmarked. Each OCP solve and each closed-loop scenario runs
 // in a child process and is recorded as "timeout" if it exceeds the time limit (some
 // formulations make a solver spin, e.g. Euler angles close to gimbal lock).
 
@@ -40,6 +44,7 @@
 using namespace quadrotor;
 using casadi::DM;
 using casadi::Function;
+using simple_casadi_mpc::JITMPC;
 using simple_casadi_mpc::MPC;
 using simple_casadi_mpc::Problem;
 using clk = std::chrono::high_resolution_clock;
@@ -49,7 +54,7 @@ using clk = std::chrono::high_resolution_clock;
 // ---------------------------------------------------------------------------
 struct Options {
   std::string out = "quadrotor_manifold_bench_results";
-  std::vector<std::string> solvers = {"fatrop"};
+  std::vector<std::string> solvers = {"fatrop", "fatrop_jit"};
   int ocp_scenarios = 40;
   int cl_scenarios = 12;
   int sqp_scenarios = 10;
@@ -125,14 +130,37 @@ casadi::Dict solver_config(const std::string &solver) {
        casadi::Dict{{"print_iter", false}, {"print_header", false}, {"error_on_fail", false}}}};
 }
 
+/// "<solver>" builds an MPC, "<solver>_jit" a JITMPC (solver JIT-compiled with the default
+/// JIT options)
+std::unique_ptr<MPC> make_mpc(const std::string &f, const std::string &solver,
+                              std::shared_ptr<Problem> prob, double &build_ms) {
+  const std::string suffix = "_jit";
+  bool jit = solver.size() > suffix.size() &&
+             solver.compare(solver.size() - suffix.size(), suffix.size(), suffix) == 0;
+  std::string base = jit ? solver.substr(0, solver.size() - suffix.size()) : solver;
+  auto t0 = clk::now();
+  std::unique_ptr<MPC> mpc;
+  if (jit)
+    mpc = std::make_unique<JITMPC>("quadrotor_bench_" + f + "_" + base, prob, base,
+                                   solver_config(base));
+  else
+    mpc = std::make_unique<MPC>(prob, base, solver_config(base));
+  build_ms = std::chrono::duration<double, std::milli>(clk::now() - t0).count();
+  return mpc;
+}
+
 // ---------------------------------------------------------------------------
 // Formulations: construction and state conversion
 // ---------------------------------------------------------------------------
-const std::vector<std::string> FORMULATIONS = {"manifold", "quat_norm", "quat_free", "euler"};
+const std::vector<std::string> FORMULATIONS = {"manifold", "manifold_proj", "quat_norm",
+                                               "quat_free", "euler"};
 
 std::shared_ptr<Problem> make_problem(const std::string &f, const Params &P) {
   if (f == "manifold")
     return std::make_shared<QuadrotorManifoldProb>(P);
+  if (f == "manifold_proj")
+    return std::make_shared<QuadrotorManifoldProb>(P,
+                                                   Problem::DynamicsType::ContinuesProjectedRK4);
   if (f == "quat_norm")
     return std::make_shared<QuadrotorQuatNormProb>(P);
   if (f == "quat_free")
@@ -367,7 +395,9 @@ IsolatedResult run_isolated(double timeout_s, const std::function<std::string()>
 // Experiments
 // ---------------------------------------------------------------------------
 void run_ocp(const Options &o, const Params &P, const Plant &plant,
-             const std::vector<Scenario> &scenarios, std::ofstream &csv) {
+             const std::vector<Scenario> &scenarios, std::ofstream &csv,
+             std::ofstream &build_csv) {
+  build_csv << "formulation,solver,build_time_ms\n";
   csv << "scenario,angle_deg,formulation,solver,success,status,iterations,solve_time_ms,"
          "true_cost,terminal_att_err_deg,terminal_pos_err,pred_att_err_deg,pred_pos_err,"
          "quat_norm_dev\n";
@@ -382,7 +412,10 @@ void run_ocp(const Options &o, const Params &P, const Plant &plant,
       auto prob = make_problem(f, P);
       std::unique_ptr<MPC> mpc;
       try {
-        mpc = std::make_unique<MPC>(prob, solver, solver_config(solver));
+        double build_ms = 0;
+        mpc = make_mpc(f, solver, prob, build_ms);
+        build_csv << f << "," << solver << "," << build_ms << "\n";
+        build_csv.flush();
       } catch (std::exception &e) {
         std::cerr << f << "/" << solver << ": construction failed: " << e.what() << std::endl;
         continue;
@@ -487,7 +520,8 @@ void run_closed_loop(const Options &o, const Params &P, const Plant &plant,
       auto prob = make_problem(f, P);
       std::unique_ptr<MPC> mpc;
       try {
-        mpc = std::make_unique<MPC>(prob, solver, solver_config(solver));
+        double build_ms = 0;
+        mpc = make_mpc(f, solver, prob, build_ms);
       } catch (std::exception &e) {
         std::cerr << f << "/" << solver << ": construction failed: " << e.what() << std::endl;
         continue;
@@ -573,7 +607,8 @@ int main(int argc, char **argv) {
 
   {
     std::ofstream csv(o.out + "/ocp_results.csv");
-    run_ocp(o, P, plant, make_scenarios(o.ocp_scenarios, o.seed), csv);
+    std::ofstream build_csv(o.out + "/build_times.csv");
+    run_ocp(o, P, plant, make_scenarios(o.ocp_scenarios, o.seed), csv, build_csv);
   }
   {
     std::ofstream summary(o.out + "/closed_loop_summary.csv");
