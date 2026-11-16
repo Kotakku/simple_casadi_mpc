@@ -90,13 +90,14 @@ static T integrate_dynamics_lie_rk4(const casadi::Manifold &M, DT dt, T x, T u,
 /// @copydetails integrate_dynamics_lie_euler
 template <class T, class DT>
 static T integrate_dynamics_projected_rk4(const casadi::Manifold &M, DT dt, T x, T u,
-                                          std::function<T(T, T)> dynamics) {
+                                          std::function<T(T, T)> dynamics, bool project = true) {
   auto rhs = [&](const T &y) { return T::mtimes(M.jac_retract_dx(y), dynamics(y, u)); };
   T k1 = rhs(x);
   T k2 = rhs(x + dt / 2 * k1);
   T k3 = rhs(x + dt / 2 * k2);
   T k4 = rhs(x + dt * k3);
-  return M.project(x + dt / 6 * (k1 + 2 * k2 + 2 * k3 + k4));
+  T x_next = x + dt / 6 * (k1 + 2 * k2 + 2 * k3 + k4);
+  return project ? M.project(x_next) : x_next;
 }
 
 /// @brief Base class describing an MPC optimal control problem.
@@ -920,7 +921,21 @@ protected:
       MX x_k1 = MX::sym("x_k1", nx);
       std::vector<MX> D_inputs = F_inputs;
       D_inputs.push_back(x_k1);
-      F_defect = Function("F_defect", D_inputs, {Mx.defect(x_k1, x_next)});
+      MX x_next_res = x_next;
+      if (prob_->dyn_type_ == Problem::DynamicsType::ContinuesProjectedRK4 &&
+          Mx.is_lie_group()) {
+        // For the built-in Lie groups, defect(y, x) vanishes iff y equals x up to the scale
+        // of x (e.g. 2*vec(conj(q_x) * q_y)), so the projection can be skipped in the residual
+        // (cheaper second derivatives); F itself stays projected
+        std::function<casadi::MX(casadi::MX, casadi::MX)> con_dyn = std::bind(
+            &Problem::dynamics, prob_.get(), std::placeholders::_1, std::placeholders::_2);
+        x_next_res = variable_dt
+                         ? integrate_dynamics_projected_rk4<casadi::MX>(Mx, dt_k_sym, x_k, u_k,
+                                                                        con_dyn, false)
+                         : integrate_dynamics_projected_rk4<casadi::MX>(Mx, prob_->dt(), x_k,
+                                                                        u_k, con_dyn, false);
+      }
+      F_defect = Function("F_defect", D_inputs, {Mx.defect(x_k1, x_next_res)});
       if (expand_inner_functions)
         F_defect = F_defect.expand(F_defect.name(), {{"cse", true}});
     }
@@ -934,10 +949,6 @@ protected:
 
     // 制約一覧
     std::vector<MX> g_k_vec;
-    if (manifold) {
-      // Initial condition (active at stage 0 only), in the tangent space
-      g_k_vec.push_back(Mx.defect(x_k, x_init_sym_));
-    }
     std::vector<casadi_int> equality_sizes; // size of each equality constraint (per stage)
     std::vector<casadi_int> inequality_sizes;
     equality_sizes.reserve(prob_->equality_constraints_.size());
@@ -1166,7 +1177,18 @@ protected:
       // defect: same zeros and first-order behavior as minus, but without the logarithm
       MX defect = manifold ? X_defect : X(Slice(), Slice(1, N + 1)) - X_next_cal;
       MX stages = G_path.is_empty() ? defect : vertcat(defect, G_path);
-      g_vec.push_back(reshape(stages, stages.size1() * N, 1));
+      if (manifold) {
+        // Stage 0 additionally carries the initial condition defect(x_0, x_init) == 0 (in the
+        // tangent space): [dynamics_0; initial; path_0], then [dynamics_k; path_k]
+        g_vec.push_back(defect(Slice(), 0));
+        g_vec.push_back(Mx.defect(X(Slice(), 0), x_init_sym_));
+        if (!G_path.is_empty())
+          g_vec.push_back(G_path(Slice(), 0));
+        if (N > 1)
+          g_vec.push_back(reshape(stages(Slice(), Slice(1, N)), stages.size1() * (N - 1), 1));
+      } else {
+        g_vec.push_back(reshape(stages, stages.size1() * N, 1));
+      }
     } else {
       g_vec.push_back(reshape(X(Slice(), Slice(1, N + 1)) - X_next_cal, nx * N, 1));
       if (!g_k.is_empty()) {
@@ -1248,11 +1270,11 @@ protected:
         ubg_numeric.insert(ubg_numeric.end(), n_defect, 0.0);
         equality_.insert(equality_.end(), n_defect, true);
       }
-      if (manifold) {
-        // Initial condition, active at stage 0 only
-        lbg_numeric.insert(lbg_numeric.end(), ndx, i == 0 ? 0.0 : -inf);
-        ubg_numeric.insert(ubg_numeric.end(), ndx, i == 0 ? 0.0 : inf);
-        equality_.insert(equality_.end(), ndx, i == 0);
+      if (manifold && i == 0) {
+        // Initial condition (stage 0 only)
+        lbg_numeric.insert(lbg_numeric.end(), ndx, 0.0);
+        ubg_numeric.insert(ubg_numeric.end(), ndx, 0.0);
+        equality_.insert(equality_.end(), ndx, true);
       }
       for (size_t ci = 0; ci < prob_->equality_constraints_.size(); ++ci) {
         auto &con = prob_->equality_constraints_[ci];
