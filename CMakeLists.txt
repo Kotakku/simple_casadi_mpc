@@ -16,7 +16,8 @@ set(CMAKE_CXX_FLAGS "-O3 -Wall -Wextra")
 
 set(HEADER_FILES
     ${CMAKE_SOURCE_DIR}/include/simple_casadi_mpc/simple_casadi_mpc.hpp
-    ${CMAKE_SOURCE_DIR}/include/simple_casadi_mpc/casadi_utils.hpp)
+    ${CMAKE_SOURCE_DIR}/include/simple_casadi_mpc/casadi_utils.hpp
+    ${CMAKE_SOURCE_DIR}/include/simple_casadi_mpc/structured_derivatives.hpp)
 
 add_library(${PROJECT_NAME} INTERFACE)
 add_library(simple_casadi_mpc::simple_casadi_mpc ALIAS ${PROJECT_NAME})
@@ -167,6 +168,14 @@ endif()
 
 # build benchmarks
 if(BUILD_BENCHMARKS)
+  # Quadrotor on SO(3): manifold vs quaternion / Euler formulations (writes CSV; plot with
+  # benchmark/plot_quadrotor_manifold_bench.py). Requires CasADi with casadi::Manifold.
+  add_executable(quadrotor_manifold_bench benchmark/quadrotor_manifold_bench.cpp)
+  target_include_directories(quadrotor_manifold_bench
+                             PRIVATE ${CMAKE_SOURCE_DIR}/benchmark)
+  target_link_libraries(quadrotor_manifold_bench PRIVATE casadi Eigen3::Eigen
+                                                         ${PROJECT_NAME})
+
   find_package(
     Python3
     COMPONENTS Interpreter Development NumPy
