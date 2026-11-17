@@ -37,6 +37,9 @@ struct Params {
   double terminal_scale = 10.0;
   // input bounds
   double thrust_max = 25.0, torque_max = 0.5;
+  // body axis of the thrust: 2 (z, quadrotor) or 0 (x, tail-sitter: hovers nose-up, i.e.
+  // pitch -90 deg, which is the singularity of ZYX Euler angles)
+  int thrust_axis = 2;
 };
 
 // ---- quaternion helpers (Hamilton, [w, x, y, z]) usable with plain CasADi ----
@@ -85,7 +88,9 @@ inline DM quat_to_euler(const DM &q) {
 
 // Rigid-body accelerations shared by all formulations
 inline MX lin_acc(const Params &P, const MX &R, const MX &u) {
-  return MX::mtimes(R, MX::vertcat({0, 0, u(0) / P.mass})) - MX(DM(std::vector<double>{0, 0, P.g}));
+  MX thrust = MX::zeros(3, 1);
+  thrust(P.thrust_axis) = u(0) / P.mass;
+  return MX::mtimes(R, thrust) - MX(DM(std::vector<double>{0, 0, P.g}));
 }
 inline MX ang_acc(const Params &P, const MX &w, const MX &u) {
   MX Jw = MX(P.inertia) * w;

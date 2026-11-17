@@ -15,7 +15,15 @@
 // The manifold state is benchmarked with two integrators: Runge-Kutta-Munthe-Kaas
 // ("manifold") and RK4 in the ambient coordinates followed by a projection ("manifold_proj").
 //
-// Usage: quadrotor_manifold_bench [--out DIR] [--solvers fatrop,fatrop_jit_sd,ipopt,...]
+// Scenarios (--scenario, comma separated or "all"; output DIR[_<scenario>]):
+//   nominal     quadrotor, hover at the identity, initial tilt 0-180 deg, dt 0.05
+//   tailsitter  thrust along body x, hover nose-up (pitch -90 deg: the singularity of ZYX
+//               Euler angles is the operating point), initial tilt 0-90 deg from hover
+//   fast_spin   recovery from 8-15 rad/s spins, coarse dt 0.1 (|omega| dt up to 1.5 rad):
+//               the integration of the unconstrained quaternion drifts off the unit sphere
+//
+// Usage: quadrotor_manifold_bench [--scenario nominal|tailsitter|fast_spin|all] [--out DIR]
+//                                 [--solvers fatrop,fatrop_jit_sd,ipopt,...]
 //                                 [--ocp-scenarios N] [--cl-scenarios N]
 //                                 [--sqp-scenarios N] [--sqp-closed-loop] [--sim-time T]
 //                                 [--seed S] [--ocp-timeout S] [--cl-timeout S]
@@ -54,16 +62,17 @@ using clk = std::chrono::high_resolution_clock;
 // Options
 // ---------------------------------------------------------------------------
 struct Options {
-  std::string out = "quadrotor_manifold_bench_results";
-  std::vector<std::string> solvers = {"fatrop", "fatrop_sd", "fatrop_jit", "fatrop_jit_sd"};
+  std::string out; // default: quadrotor_manifold_bench_results[_<scenario>]
+  std::string scenario = "nominal";
+  std::vector<std::string> solvers; // default: per scenario
   int ocp_scenarios = 40;
   int cl_scenarios = 12;
   int sqp_scenarios = 10;
   bool sqp_closed_loop = false;
-  double sim_time = 3.0;
+  double sim_time = -1; // [s] closed-loop duration (default: per scenario)
   unsigned seed = 1;
-  double ocp_timeout = 60.0;  // [s] per OCP solve
-  double cl_timeout = 180.0;  // [s] per closed-loop scenario
+  double ocp_timeout = -1; // [s] per OCP solve (default: per scenario)
+  double cl_timeout = -1;  // [s] per closed-loop scenario (default: per scenario)
 };
 
 Options parse(int argc, char **argv) {
@@ -77,6 +86,8 @@ Options parse(int argc, char **argv) {
     };
     if (a == "--out")
       o.out = next();
+    else if (a == "--scenario")
+      o.scenario = next();
     else if (a == "--solvers") {
       o.solvers.clear();
       std::stringstream ss(next());
@@ -133,8 +144,9 @@ casadi::Dict solver_config(const std::string &solver) {
 
 /// "<solver>[_jit][_sd]": "_jit" builds a JITMPC (solver JIT-compiled with the default JIT
 /// options), "_sd" enables structured_derivatives (stage-wise Hessian / Jacobian)
-std::unique_ptr<MPC> make_mpc(const std::string &f, const std::string &solver,
-                              std::shared_ptr<Problem> prob, double &build_ms) {
+std::unique_ptr<MPC> make_mpc(const std::string &tag, const std::string &f,
+                              const std::string &solver, std::shared_ptr<Problem> prob,
+                              double &build_ms) {
   std::string base = solver;
   bool jit = false, sd = false;
   auto strip = [&](const std::string &suffix) {
@@ -158,7 +170,9 @@ std::unique_ptr<MPC> make_mpc(const std::string &f, const std::string &solver,
   auto t0 = clk::now();
   std::unique_ptr<MPC> mpc;
   if (jit)
-    mpc = std::make_unique<JITMPC>("quadrotor_bench_" + f + "_" + solver, prob, base, cfg);
+    // unique per scenario: a shared library path is only loaded once per process
+    mpc = std::make_unique<JITMPC>("quadrotor_bench_" + tag + "_" + f + "_" + solver, prob, base,
+                                   cfg);
   else
     mpc = std::make_unique<MPC>(prob, base, cfg);
   build_ms = std::chrono::duration<double, std::milli>(clk::now() - t0).count();
@@ -226,6 +240,54 @@ double attitude_error_deg(const Eigen::VectorXd &qa, const Eigen::VectorXd &qb) 
 }
 
 // ---------------------------------------------------------------------------
+// Scenario sets
+// ---------------------------------------------------------------------------
+struct Setting {
+  std::string name, description;
+  Params P;
+  int plant_substeps = 4;
+  Eigen::VectorXd q_goal = (Eigen::VectorXd(4) << 1, 0, 0, 0).finished();
+  double max_tilt_deg = 180;           // initial attitudes: tilt from q_goal in (0, max)
+  double omega_min = 0, omega_max = 0; // initial body rate magnitude [rad/s], random axis
+  double sim_time = 3.0;
+  // Default solvers and time limits (the Euler formulation can make fatrop spin at its
+  // singularity until the time limit)
+  std::vector<std::string> solvers = {"fatrop_jit_sd"};
+  double ocp_timeout = 5, cl_timeout = 20;
+};
+
+Setting make_setting(const std::string &name) {
+  Setting s;
+  s.name = name;
+  if (name == "nominal") {
+    s.description = "Quadrotor, hover at the identity, initial tilt 0-180 deg, dt 0.05";
+    // shows the cost of the manifold formulation for each derivative / JIT option
+    s.solvers = {"fatrop", "fatrop_sd", "fatrop_jit", "fatrop_jit_sd"};
+    s.ocp_timeout = 30;
+    s.cl_timeout = 180;
+  } else if (name == "tailsitter") {
+    // Thrust along body x; hover nose-up = rotation by -90 deg about y (pitch -90 deg)
+    s.description = "Tail-sitter (thrust along body x), hover nose-up (ZYX pitch -90 deg = "
+                    "Euler singularity), initial tilt 0-90 deg from hover, dt 0.05";
+    s.P.thrust_axis = 0;
+    s.q_goal << std::cos(-M_PI / 4), 0, std::sin(-M_PI / 4), 0;
+    s.max_tilt_deg = 90;
+  } else if (name == "fast_spin") {
+    s.description = "Quadrotor recovering from a fast spin (8-15 rad/s about a random axis), "
+                    "initial tilt 0-180 deg, coarse dt 0.1 (|omega| dt up to 1.5 rad)";
+    s.P.dt = 0.1;
+    s.plant_substeps = 20;
+    s.omega_min = 8;
+    s.omega_max = 15;
+    s.sim_time = 4.0;
+  } else {
+    throw std::invalid_argument("unknown scenario '" + name +
+                                "' (nominal, tailsitter, fast_spin)");
+  }
+  return s;
+}
+
+// ---------------------------------------------------------------------------
 // Plant (high-accuracy Lie RK4 with substeps) and common cost
 // ---------------------------------------------------------------------------
 struct Plant {
@@ -266,24 +328,29 @@ struct Scenario {
   Eigen::VectorXd x0; // plant state
 };
 
-std::vector<Scenario> make_scenarios(int n, unsigned seed) {
+std::vector<Scenario> make_scenarios(const Setting &st, int n, unsigned seed) {
   std::mt19937 rng(seed);
   std::normal_distribution<double> nrm(0.0, 1.0);
   std::uniform_real_distribution<double> uni(-1.0, 1.0);
   casadi::Manifold SO3 = casadi::Manifold::SO3();
   std::vector<Scenario> s;
   for (int i = 0; i < n; ++i) {
-    // initial attitude angles spread over (0, 180) deg with random axes
-    double angle = M_PI * (i + 0.5) / n;
+    // initial tilt from the goal attitude spread over (0, max_tilt) with random axes
+    double angle = st.max_tilt_deg * M_PI / 180 * (i + 0.5) / n;
     Eigen::Vector3d axis(nrm(rng), nrm(rng), nrm(rng));
     axis.normalize();
     Eigen::VectorXd rotvec = angle * axis;
-    DM q = SO3.exp(casadi_utils::to_casadi(rotvec));
+    DM q = SO3.compose(casadi_utils::to_casadi(st.q_goal), SO3.exp(casadi_utils::to_casadi(rotvec)));
     Eigen::VectorXd x0 = Eigen::VectorXd::Zero(13);
     for (int k = 0; k < 3; ++k)
       x0[k] = uni(rng);
     for (int k = 0; k < 4; ++k)
       x0[6 + k] = q(k).scalar();
+    if (st.omega_max > 0) {
+      Eigen::Vector3d w(nrm(rng), nrm(rng), nrm(rng));
+      double mag = st.omega_min + (st.omega_max - st.omega_min) * 0.5 * (uni(rng) + 1);
+      x0.tail(3) = mag * w.normalized();
+    }
     s.push_back({i, angle * 180.0 / M_PI, x0});
   }
   return s;
@@ -410,26 +477,28 @@ IsolatedResult run_isolated(double timeout_s, const std::function<std::string()>
 // ---------------------------------------------------------------------------
 // Experiments
 // ---------------------------------------------------------------------------
-void run_ocp(const Options &o, const Params &P, const Plant &plant,
+void run_ocp(const Options &o, const Setting &st, const Plant &plant,
              const std::vector<Scenario> &scenarios, std::ofstream &csv,
              std::ofstream &build_csv) {
+  const Params &P = st.P;
+  const double ocp_timeout = o.ocp_timeout > 0 ? o.ocp_timeout : st.ocp_timeout;
   build_csv << "formulation,solver,build_time_ms\n";
   csv << "scenario,angle_deg,formulation,solver,success,status,iterations,solve_time_ms,"
          "true_cost,terminal_att_err_deg,terminal_pos_err,pred_att_err_deg,pred_pos_err,"
          "quat_norm_dev\n";
   const DM p_goal = DM::zeros(3, 1);
-  const DM q_goal = DM(std::vector<double>{1, 0, 0, 0});
+  const DM q_goal = casadi_utils::to_casadi(st.q_goal);
   const casadi::DMDict par = {{"p_goal", p_goal}, {"q_goal", q_goal}};
   Eigen::VectorXd u_hover(4);
   u_hover << P.mass * P.g, 0, 0, 0;
 
   for (const auto &f : FORMULATIONS) {
-    for (const auto &solver : o.solvers) {
+    for (const auto &solver : (o.solvers.empty() ? st.solvers : o.solvers)) {
       auto prob = make_problem(f, P);
       std::unique_ptr<MPC> mpc;
       try {
         double build_ms = 0;
-        mpc = make_mpc(f, solver, prob, build_ms);
+        mpc = make_mpc(st.name, f, solver, prob, build_ms);
         build_csv << f << "," << solver << "," << build_ms << "\n";
         build_csv.flush();
       } catch (std::exception &e) {
@@ -486,8 +555,7 @@ void run_ocp(const Options &o, const Params &P, const Plant &plant,
             }
           }
           double nan = std::numeric_limits<double>::quiet_NaN();
-          Eigen::VectorXd qg(4);
-          qg << 1, 0, 0, 0;
+          const Eigen::VectorXd &qg = st.q_goal;
           row << sc.id << "," << sc.angle_deg << "," << f << "," << solver << "," << (ok ? 1 : 0)
               << "," << status << "," << stats_iterations(*mpc) << "," << ms << ","
               << (finite ? cost : nan) << ","
@@ -496,14 +564,14 @@ void run_ocp(const Options &o, const Params &P, const Plant &plant,
               << (finite ? pred_pos : nan) << "," << (finite ? qdev : nan) << "\n";
           return row.str();
         };
-        IsolatedResult r = run_isolated(o.ocp_timeout, solve_one);
+        IsolatedResult r = run_isolated(ocp_timeout, solve_one);
         if (r.status == IsolatedResult::Ok) {
           csv << r.output;
           std::cout << "." << std::flush;
         } else {
           bool to = r.status == IsolatedResult::Timeout;
           csv << sc.id << "," << sc.angle_deg << "," << f << "," << solver << ",0,"
-              << (to ? "timeout" : "crash") << ",-1," << (to ? o.ocp_timeout * 1e3 : 0.0)
+              << (to ? "timeout" : "crash") << ",-1," << (to ? ocp_timeout * 1e3 : 0.0)
               << ",nan,nan,nan,nan,nan,nan\n";
           std::cout << (to ? "T" : "C") << std::flush;
         }
@@ -514,30 +582,32 @@ void run_ocp(const Options &o, const Params &P, const Plant &plant,
   }
 }
 
-void run_closed_loop(const Options &o, const Params &P, const Plant &plant,
+void run_closed_loop(const Options &o, const Setting &st, const Plant &plant,
                      const std::vector<Scenario> &scenarios, std::ofstream &summary,
                      std::ofstream &steps) {
+  const Params &P = st.P;
+  const double cl_timeout = o.cl_timeout > 0 ? o.cl_timeout : st.cl_timeout;
   summary << "scenario,angle_deg,formulation,solver,success,failed_solves,final_pos_err,"
-             "final_att_err_deg,mean_solve_ms,max_solve_ms\n";
+             "final_att_err_deg,mean_solve_ms,max_solve_ms,closed_loop_cost\n";
   steps << "scenario,formulation,solver,step,time,solve_time_ms,success,pos_err,att_err_deg\n";
   const DM p_goal = DM::zeros(3, 1);
-  const DM q_goal = DM(std::vector<double>{1, 0, 0, 0});
+  const DM q_goal = casadi_utils::to_casadi(st.q_goal);
   const casadi::DMDict par = {{"p_goal", p_goal}, {"q_goal", q_goal}};
   Eigen::VectorXd u_hover(4);
   u_hover << P.mass * P.g, 0, 0, 0;
-  Eigen::VectorXd qg(4);
-  qg << 1, 0, 0, 0;
-  const int n_steps = static_cast<int>(std::round(o.sim_time / P.dt));
+  const Eigen::VectorXd &qg = st.q_goal;
+  const int n_steps =
+      static_cast<int>(std::round((o.sim_time > 0 ? o.sim_time : st.sim_time) / P.dt));
 
   for (const auto &f : FORMULATIONS) {
-    for (const auto &solver : o.solvers) {
+    for (const auto &solver : (o.solvers.empty() ? st.solvers : o.solvers)) {
       if (solver == "sqpmethod" && !o.sqp_closed_loop)
         continue;
       auto prob = make_problem(f, P);
       std::unique_ptr<MPC> mpc;
       try {
         double build_ms = 0;
-        mpc = make_mpc(f, solver, prob, build_ms);
+        mpc = make_mpc(st.name, f, solver, prob, build_ms);
       } catch (std::exception &e) {
         std::cerr << f << "/" << solver << ": construction failed: " << e.what() << std::endl;
         continue;
@@ -549,7 +619,7 @@ void run_closed_loop(const Options &o, const Params &P, const Plant &plant,
         Eigen::VectorXd x = sc.x0;
         mpc->initialize_trajectory(to_formulation(f, x), u_hover);
         int failed = 0;
-        double sum_ms = 0, max_ms = 0;
+        double sum_ms = 0, max_ms = 0, cl_cost = 0;
         bool diverged = false;
         for (int k = 0; k < n_steps; ++k) {
           Eigen::VectorXd u = u_hover;
@@ -572,6 +642,11 @@ void run_closed_loop(const Options &o, const Params &P, const Plant &plant,
           failed += ok ? 0 : 1;
           sum_ms += ms;
           max_ms = std::max(max_ms, ms);
+          // closed-loop performance: common stage cost of the plant trajectory
+          cl_cost += plant
+                         .cost(std::vector<DM>{casadi_utils::to_casadi(x),
+                                               casadi_utils::to_casadi(u), p_goal, q_goal})[0]
+                         .scalar();
           x = plant.advance(x, u);
           if (!x.allFinite() || x.head(3).norm() > 100) {
             diverged = true;
@@ -588,11 +663,12 @@ void run_closed_loop(const Options &o, const Params &P, const Plant &plant,
         bool success = !diverged && pos_err < 0.1 && att_err < 5.0;
         summary << sc.id << "," << sc.angle_deg << "," << f << "," << solver << ","
                 << (success ? 1 : 0) << "," << failed << "," << pos_err << "," << att_err << ","
-                << sum_ms / n_steps << "," << max_ms << "\n";
+                << sum_ms / n_steps << "," << max_ms << ","
+                << (diverged ? std::numeric_limits<double>::quiet_NaN() : cl_cost) << "\n";
         // summary line first, then the steps
         return summary.str() + steps.str();
        };
-       IsolatedResult r = run_isolated(o.cl_timeout, run_scenario);
+       IsolatedResult r = run_isolated(cl_timeout, run_scenario);
        if (r.status == IsolatedResult::Ok) {
          size_t eol = r.output.find('\n');
          summary << r.output.substr(0, eol + 1);
@@ -601,7 +677,7 @@ void run_closed_loop(const Options &o, const Params &P, const Plant &plant,
        } else {
          bool to = r.status == IsolatedResult::Timeout;
          summary << sc.id << "," << sc.angle_deg << "," << f << "," << solver
-                 << ",0,-1,nan,nan,nan," << (to ? o.cl_timeout * 1e3 : 0.0) << "\n";
+                 << ",0,-1,nan,nan,nan," << (to ? cl_timeout * 1e3 : 0.0) << ",nan\n";
          std::cout << (to ? "T" : "C") << std::flush;
        }
         summary.flush();
@@ -614,23 +690,40 @@ void run_closed_loop(const Options &o, const Params &P, const Plant &plant,
 
 int main(int argc, char **argv) {
   Options o = parse(argc, argv);
-  Params P;
-  std::filesystem::create_directories(o.out);
-  Plant plant(P);
-
-  std::cout << "Quadrotor manifold benchmark: horizon " << P.horizon << ", dt " << P.dt
-            << ", output " << o.out << std::endl;
-
+  std::vector<std::string> names;
   {
-    std::ofstream csv(o.out + "/ocp_results.csv");
-    std::ofstream build_csv(o.out + "/build_times.csv");
-    run_ocp(o, P, plant, make_scenarios(o.ocp_scenarios, o.seed), csv, build_csv);
+    std::stringstream ss(o.scenario == "all" ? std::string("nominal,tailsitter,fast_spin")
+                                             : o.scenario);
+    std::string item;
+    while (std::getline(ss, item, ','))
+      names.push_back(item);
   }
-  {
-    std::ofstream summary(o.out + "/closed_loop_summary.csv");
-    std::ofstream steps(o.out + "/closed_loop_steps.csv");
-    run_closed_loop(o, P, plant, make_scenarios(o.cl_scenarios, o.seed + 1), summary, steps);
+  for (const auto &name : names) {
+    Setting st = make_setting(name);
+    std::string out = !o.out.empty() && names.size() == 1 ? o.out
+                      : (o.out.empty() ? std::string("quadrotor_manifold_bench_results")
+                                       : o.out) +
+                            (name == "nominal" ? "" : "_" + name);
+    std::filesystem::create_directories(out);
+    Plant plant(st.P, st.plant_substeps);
+    std::cout << "Quadrotor manifold benchmark [" << name << "]: " << st.description
+              << ", horizon " << st.P.horizon << ", output " << out << std::endl;
+    {
+      std::ofstream meta(out + "/scenario.txt");
+      meta << name << "\n" << st.description << "\n";
+    }
+    {
+      std::ofstream csv(out + "/ocp_results.csv");
+      std::ofstream build_csv(out + "/build_times.csv");
+      run_ocp(o, st, plant, make_scenarios(st, o.ocp_scenarios, o.seed), csv, build_csv);
+    }
+    {
+      std::ofstream summary(out + "/closed_loop_summary.csv");
+      std::ofstream steps(out + "/closed_loop_steps.csv");
+      run_closed_loop(o, st, plant, make_scenarios(st, o.cl_scenarios, o.seed + 1), summary,
+                      steps);
+    }
+    std::cout << "Done. Plot with: python3 plot_quadrotor_manifold_bench.py " << out << std::endl;
   }
-  std::cout << "Done. Plot with: python3 plot_quadrotor_manifold_bench.py " << o.out << std::endl;
   return 0;
 }

@@ -33,6 +33,29 @@ SOLVER_COLORS = {"fatrop": "#1f77b4", "fatrop_sd": "#9467bd", "fatrop_jit": "#17
                  "ipopt_jit": "#bcbd22", "ipopt_jit_sd": "#e377c2", "sqpmethod": "#2ca02c"}
 
 
+SCENARIO = ""  # name and description from scenario.txt (shown as figure title)
+
+
+def save(fig, path):
+    if SCENARIO:
+        fig.suptitle(SCENARIO, fontsize=11)
+    fig.tight_layout()
+    fig.savefig(path, dpi=130)
+
+
+def relative_gap(rows, key, out_key):
+    """(J - J_best) / J_best per scenario, J_best among successful runs"""
+    best = {}
+    for r in rows:
+        c = num(r.get(key, "nan"))
+        if r["success"] == "1" and math.isfinite(c):
+            best[r["scenario"]] = min(best.get(r["scenario"], math.inf), c)
+    for r in rows:
+        c = num(r.get(key, "nan"))
+        b = best.get(r["scenario"], math.nan)
+        r[out_key] = str((c - b) / b) if math.isfinite(c) and math.isfinite(b) and b > 0 else "nan"
+
+
 def read_csv(path):
     if not os.path.exists(path):
         return []
@@ -135,15 +158,7 @@ def plot_ocp(rows, out):
     if not rows:
         return
     # relative true cost w.r.t. the best solution of each scenario (among successful solves)
-    best = {}
-    for r in rows:
-        c = num(r["true_cost"])
-        if r["success"] == "1" and math.isfinite(c):
-            best[r["scenario"]] = min(best.get(r["scenario"], math.inf), c)
-    for r in rows:
-        c = num(r["true_cost"])
-        b = best.get(r["scenario"], math.nan)
-        r["cost_gap"] = str((c - b) / b) if math.isfinite(c) and math.isfinite(b) else "nan"
+    relative_gap(rows, "true_cost", "cost_gap")
 
     fig, axs = plt.subplots(2, 2, figsize=(14, 10))
     bar_by_combo(axs[0, 0], rows, success_rate, "success rate",
@@ -155,8 +170,7 @@ def plot_ocp(rows, out):
     box_by_combo(axs[1, 1], rows, "cost_gap", "(J - J_best) / J_best",
                  "OCP: true cost of the plant rollout vs best (all solves, floor 1e-8)",
                  log=True, floor=1e-8)
-    fig.tight_layout()
-    fig.savefig(os.path.join(out, "ocp_overview.png"), dpi=130)
+    save(fig, os.path.join(out, "ocp_overview.png"))
     plt.close(fig)
 
     fig, axs = plt.subplots(1, 3, figsize=(18, 5))
@@ -167,8 +181,7 @@ def plot_ocp(rows, out):
     box_by_combo(axs[2], rows, "quat_norm_dev", "max | |q| - 1 |",
                  "OCP: quaternion norm drift of the prediction (floor 1e-16, Euler: n/a)",
                  log=True, floor=1e-16)
-    fig.tight_layout()
-    fig.savefig(os.path.join(out, "ocp_accuracy.png"), dpi=130)
+    save(fig, os.path.join(out, "ocp_accuracy.png"))
     plt.close(fig)
 
     # success rate versus initial attitude angle
@@ -194,17 +207,21 @@ def plot_ocp(rows, out):
         ax.grid(alpha=0.3)
         ax.legend(fontsize=8)
     np.atleast_1d(axs)[0].set_ylabel("success rate")
-    fig.tight_layout()
-    fig.savefig(os.path.join(out, "ocp_success_vs_angle.png"), dpi=130)
+    save(fig, os.path.join(out, "ocp_success_vs_angle.png"))
     plt.close(fig)
 
 
 def plot_closed_loop(summary, steps, out):
     if not summary:
         return
-    fig, axs = plt.subplots(2, 2, figsize=(14, 10))
+    relative_gap(summary, "closed_loop_cost", "cl_cost_gap")
+    fig, axs = plt.subplots(2, 3, figsize=(21, 10))
     bar_by_combo(axs[0, 0], summary, success_rate, "success rate",
                  "Closed loop: reached the goal (|p| < 0.1 m, attitude < 5 deg)", ylim=(0, 1.1))
+    box_by_combo(axs[0, 2], summary, "cl_cost_gap", "(J_cl - J_best) / J_best",
+                 "Closed loop: accumulated plant cost vs best (floor 1e-6)", log=True, floor=1e-6)
+    box_by_combo(axs[1, 2], summary, "final_pos_err", "position error [m]",
+                 "Closed loop: final position error", log=True)
     box_by_combo(axs[0, 1], steps, "solve_time_ms", "solve time [ms]",
                  "Closed loop: solve time per MPC step (warm start)", log=True)
     bar_by_combo(axs[1, 0], steps,
@@ -213,8 +230,7 @@ def plot_closed_loop(summary, steps, out):
                  fmt="{:.1%}")
     box_by_combo(axs[1, 1], summary, "final_att_err_deg", "attitude error [deg]",
                  "Closed loop: final attitude error", log=True)
-    fig.tight_layout()
-    fig.savefig(os.path.join(out, "closed_loop_overview.png"), dpi=130)
+    save(fig, os.path.join(out, "closed_loop_overview.png"))
     plt.close(fig)
 
     # attitude error over time for the hardest scenario
@@ -240,8 +256,7 @@ def plot_closed_loop(summary, steps, out):
         ax.set_xlabel("time [s]")
         ax.grid(alpha=0.3)
         ax.legend(fontsize=7, ncol=2)
-    fig.tight_layout()
-    fig.savefig(os.path.join(out, "closed_loop_trajectory.png"), dpi=130)
+    save(fig, os.path.join(out, "closed_loop_trajectory.png"))
     plt.close(fig)
 
 
@@ -252,6 +267,8 @@ def median(vals):
 
 def write_summary(ocp, summary, steps, out, builds=()):
     lines = ["# Quadrotor manifold benchmark\n"]
+    if SCENARIO:
+        lines += [f"Scenario: {SCENARIO}\n"]
     if builds:
         lines += ["## Build (construction incl. JIT compilation)\n",
                   "| formulation | solver | build time [s] |", "|---|---|---|"]
@@ -276,8 +293,8 @@ def write_summary(ocp, summary, steps, out, builds=()):
     if summary:
         lines += ["## Closed loop\n",
                   "| formulation | solver | n | success | failed solves | median time [ms] | "
-                  "max time [ms] | median final attitude error [deg] |",
-                  "|---|---|---|---|---|---|---|---|"]
+                  "max time [ms] | median final attitude error [deg] | median closed-loop cost gap |",
+                  "|---|---|---|---|---|---|---|---|---|"]
         for f, s in combos(summary):
             sel = select(summary, f, s)
             st = select(steps, f, s)
@@ -286,7 +303,8 @@ def write_summary(ocp, summary, steps, out, builds=()):
                 f"| {f} | {s} | {len(sel)} | {success_rate(sel):.0%} | {failed:.1%} | "
                 f"{median([num(r['solve_time_ms']) for r in st]):.1f} | "
                 f"{max([num(r['max_solve_ms']) for r in sel]):.1f} | "
-                f"{median([num(r['final_att_err_deg']) for r in sel]):.2f} |")
+                f"{median([num(r['final_att_err_deg']) for r in sel]):.2f} | "
+                f"{median([num(r.get('cl_cost_gap', 'nan')) for r in sel]):.2e} |")
     with open(os.path.join(out, "summary.md"), "w") as f:
         f.write("\n".join(lines) + "\n")
     print("\n".join(lines))
@@ -304,6 +322,11 @@ def main():
         print(__doc__)
         sys.exit(1)
     out = sys.argv[1]
+    global SCENARIO
+    meta = os.path.join(out, "scenario.txt")
+    if os.path.exists(meta):
+        with open(meta) as f:
+            SCENARIO = " - ".join(l.strip() for l in f if l.strip())
     ocp = read_csv(os.path.join(out, "ocp_results.csv"))
     summary = read_csv(os.path.join(out, "closed_loop_summary.csv"))
     steps = read_csv(os.path.join(out, "closed_loop_steps.csv"))

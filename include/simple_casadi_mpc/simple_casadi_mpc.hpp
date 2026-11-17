@@ -1450,7 +1450,6 @@ protected:
     using namespace casadi;
     const casadi_int N = d.N, nx = d.nx, nu = d.nu, ns = d.ns, np = d.np;
     const casadi_int ws = nx + nu + ns;       // entries of [x_k; u_k; s_k] in w
-    const casadi_int nz = nx + nu + ns + nx;  // z_k = [x_k; u_k; s_k; x_{k+1}]
     const casadi_int nr = d.n_defect + np;    // rows of [dynamics_k; path_k]
     const Manifold &Mx = prob_->state_manifold();
 

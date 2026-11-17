@@ -396,20 +396,34 @@ Runtime comparisons for cartpole MPC solver variants.
 ### Quadrotor on SO(3): manifold vs quaternion / Euler formulations
 
 `benchmark/quadrotor_manifold_bench.cpp` solves the same quadrotor problem with the
-orientation on SO(3) (`casadi::Manifold`) and with formulations available in upstream
-CasADi (quaternion with `|q|^2 = 1` path constraints, unconstrained quaternion, ZYX
-Euler angles), each with fatrop / ipopt / sqpmethod. It reports success rate, solve
-time, iterations and solution accuracy (true cost of the plant rollout, prediction
-error, quaternion norm drift) for cold-started OCPs from random attitudes up to
-180 deg, and closed-loop MPC.
+orientation on SO(3) (`casadi::Manifold`, with Lie RK4 or projected RK4) and with
+formulations available in upstream CasADi (quaternion with `|q|^2 = 1` path constraints,
+unconstrained quaternion, ZYX Euler angles). It reports success rate, solve time,
+iterations and solution accuracy (true cost of the plant rollout, prediction error,
+quaternion norm drift) for cold-started OCPs, and closed-loop MPC on a high-accuracy
+plant (success, solve time, accumulated plant cost).
+
+Scenarios (`--scenario`, comma separated or `all`):
+
+- `nominal`: hover at the identity from initial tilts up to 180 deg, dt 0.05. Shows the
+  cost of the manifold formulation; run with every derivative / JIT option
+  (`fatrop`, `fatrop_sd`, `fatrop_jit`, `fatrop_jit_sd`).
+- `tailsitter`: thrust along the body x axis, hovering nose-up. The operating point is the
+  singularity of ZYX Euler angles (pitch -90 deg).
+- `fast_spin`: recovery from 8-15 rad/s spins with a coarse dt of 0.1 s
+  (`|omega| dt` up to 1.5 rad). The unconstrained quaternion drifts off the unit sphere and
+  its prediction model degrades; the manifold formulation stays on SO(3).
 
 ```bash
 cmake .. -DBUILD_BENCHMARKS=ON && make quadrotor_manifold_bench
-./quadrotor_manifold_bench --out results \
-  [--solvers fatrop,ipopt,sqpmethod] [--ocp-scenarios 40] [--cl-scenarios 12] \
-  [--sqp-scenarios 10] [--sqp-closed-loop] [--sim-time 3]   # default: fatrop only
-python3 ../benchmark/plot_quadrotor_manifold_bench.py results
+./quadrotor_manifold_bench --scenario all \
+  [--solvers fatrop,fatrop_jit_sd,ipopt,sqpmethod] [--ocp-scenarios 40] [--cl-scenarios 12]
+python3 ../benchmark/plot_quadrotor_manifold_bench.py quadrotor_manifold_bench_results
+python3 ../benchmark/plot_quadrotor_manifold_bench.py quadrotor_manifold_bench_results_tailsitter
+python3 ../benchmark/plot_quadrotor_manifold_bench.py quadrotor_manifold_bench_results_fast_spin
 ```
+
+Solver names take the suffixes `_jit` (JITMPC) and `_sd` (`structured_derivatives`).
 
 ## Documentation
 
