@@ -16,7 +16,8 @@ set(CMAKE_CXX_FLAGS "-O3 -Wall -Wextra")
 
 set(HEADER_FILES
     ${CMAKE_SOURCE_DIR}/include/simple_casadi_mpc/simple_casadi_mpc.hpp
-    ${CMAKE_SOURCE_DIR}/include/simple_casadi_mpc/casadi_utils.hpp)
+    ${CMAKE_SOURCE_DIR}/include/simple_casadi_mpc/casadi_utils.hpp
+    ${CMAKE_SOURCE_DIR}/include/simple_casadi_mpc/structured_derivatives.hpp)
 
 add_library(${PROJECT_NAME} INTERFACE)
 add_library(simple_casadi_mpc::simple_casadi_mpc ALIAS ${PROJECT_NAME})

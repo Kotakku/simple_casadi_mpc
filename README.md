@@ -5,6 +5,30 @@
 
 Lightweight C++ utilities for building and solving MPC problems with CasADi. Includes runtime MPC, JIT-compiled MPC, and CMake-integrated compiled MPC solvers.
 
+## Compared to writing the NLP with Opti / nlpsol
+
+Anything simple_casadi_mpc builds can also be written by hand with CasADi's `Opti` or `nlpsol`; the result is correct either way. Writing the problem in this library's stage-wise form lets it do the following for you.
+
+- **Transcription.** Multiple shooting with explicit integrators (Euler, Heun, RK4, Lie Euler / Lie RK4, projected RK4) and per-stage time steps.
+- **Constraints and parameters.** Hard path constraints, soft path constraints (slack variables and penalties), constraints active on selected stages only, and per-stage parameters / reference trajectories.
+- **Loop-shaped NLP.** Dynamics, cost and constraints are built once per stage and `map`ped over the horizon, with stage-wise SX expansion. This keeps AD and JIT compilation fast.
+- **Solver-friendly layout.** With fatrop (and on manifolds), constraints are laid out stage by stage, so fatrop detects the OCP structure automatically.
+- **Structured derivatives** (`structured_derivatives`, see [Performance knobs](#performance-knobs-mpc--jitmpc-config)).
+  - With `Opti` or `nlpsol`, CasADi differentiates the NLP as a whole. The Hessian of the Lagrangian is colored globally, which needs many directions when a stage couples `x_k` and `x_{k+1}` nonlinearly.
+  - Because simple_casadi_mpc knows the stage structure, it can compute the Hessian and the constraint Jacobian stage by stage, scatter them into the global matrices, and pass them to CasADi (`custom_hess_lag` / `custom_jac_g`).
+  - With `Opti` you would have to write this assembly yourself to get the same speed. In the quadrotor benchmark (fatrop, JIT, closed-loop median per MPC step):
+
+    | formulation | AD of the whole NLP (as with Opti) | `structured_derivatives` |
+    |---|---|---|
+    | manifold (projected RK4) | 1.6 ms | 0.8 ms |
+    | quaternion without norm constraint | 1.1 ms | 0.8 ms |
+    | Euler ZYX | 1.1 ms | 0.8 ms |
+
+- **States on a manifold.** Defect-based dynamics and initial-state constraints, and the decision-vector manifold `x_manifold`. Bounds are allowed only on Euclidean entries, and solvers without native support fall back automatically (see [States on a manifold](#states-on-a-manifold-lie-groups)).
+- **Deployment.** Warm starting, `JITMPC`, and `CompiledMPC` (C code generated at CMake time).
+
+If your problem is not a stage-wise optimal control problem, use `Opti` / `nlpsol` directly.
+
 ## Dependencies
 
 - CasADi ([install script](install_casadi.sh))
@@ -357,13 +381,13 @@ mpc.solve(x, {{"x_ref", x_ref_dm}, {"obstacle", obs_dm}});
 
 ### Performance knobs (`MPC` / `JITMPC` config)
 
-Two simple-casadi-mpc-specific options can be passed in the config dict (consumed before being forwarded to CasADi):
+simple-casadi-mpc-specific options can be passed in the config dict (consumed before being forwarded to CasADi):
 
 - `mapsum_stage_cost` (default `true`): build the stage-cost sum via MapSum so first-order AD stays loop-shaped.
 - `expand_inner_functions` (default `true`): SX-expand per-stage F/L/G before mapping for faster JIT compilation.
 
 Both default to `true`. If your `stage_cost` has stage-dependent branching beyond per-stage parameter slicing, the library auto-falls-back to a per-stage loop (warning emitted) and you can also set `mapsum_stage_cost = false` explicitly.
-- `structured_derivatives` (default `false`): compute the Hessian of the Lagrangian and the constraint Jacobian stage by stage (expanded SX per stage, mapped over the horizon and scattered into the global matrices) instead of by automatic differentiation of the whole NLP. Typically 2-5x faster derivative evaluations, in particular on manifolds where the dynamics residual couples `x_k` and `x_{k+1}` nonlinearly. Needs a CasADi with the nlpsol options `custom_hess_lag` / `custom_jac_g`; it is disabled (with a warning) when `mapsum_stage_cost` is not applicable or for manifold problems on solvers without native manifold support.
+- `structured_derivatives` (default `false`): compute the Hessian of the Lagrangian and the constraint Jacobian stage by stage (expanded SX per stage, mapped over the horizon and scattered into the global matrices; implemented in `structured_derivatives.hpp`) instead of by automatic differentiation of the whole NLP. Typically 2-5x faster derivative evaluations, in particular on manifolds where the dynamics residual couples `x_k` and `x_{k+1}` nonlinearly. Needs a CasADi with the nlpsol options `custom_hess_lag` / `custom_jac_g`; it is disabled (with a warning) when `mapsum_stage_cost` is not applicable or for manifold problems on solvers without native manifold support.
 
 The stage-dependence check of `stage_cost` compares the expressions structurally and, if that is inconclusive (e.g. `dot`/`sumsqr` nodes), numerically at random inputs.
 
